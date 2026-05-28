@@ -76,6 +76,34 @@ The sweep writes `sweep_results.csv`, `global_map.png`,
 `top50_landscape.png`, `bottom50_landscape.png`, and
 `failure_analysis_grid.png` in the corresponding country folder.
 
+### Data Download
+
+The historical COVID script looks for `data/owid-covid-data.csv`. If the file
+is not present, it downloads the CSV from the public Our World in Data GitHub
+repository and caches it locally under `data/`.
+
+The cached CSV is intentionally ignored by git because it is sourced from OWID,
+can be re-downloaded, and is larger than the project code. To refresh the local
+copy, delete `data/owid-covid-data.csv` and rerun `scripts/covid_analysis.py`.
+
+Manual download location:
+
+```text
+https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/owid-covid-data.csv
+```
+
+### Command-Line Flags
+
+`scripts/covid_analysis.py`:
+
+| Flag | Default | Description |
+|---|---:|---|
+| `--train-country "Country Name"` | `Italy` | Country used to learn the SIR model-error correction from historical OWID data. Use the exact OWID `location` name, such as `"South Africa"` or `Germany`. |
+| `--sweep` | off | After learning the correction from the training country, evaluate one-step error improvement across all available OWID countries and save global maps/rankings. |
+
+`scripts/verification.py` currently has no command-line flags. Running it
+executes the full synthetic verification suite.
+
 <details>
 <summary>Example country calls used in this project</summary>
 

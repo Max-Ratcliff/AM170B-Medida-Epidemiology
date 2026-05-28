@@ -1,0 +1,8 @@
+% Noisy SIRS
+% Metrics: Improvement: 0.7x, L2 Error: 1.0e-01
+
+\begin{aligned}
+\frac{dS}{dt} &= 0.001535 1 + 0.001495 S + 0.07503 R - 0.01879 S I + 0.03934 I^{2} - 0.03488 I R \\
+\frac{dI}{dt} &= -0.0051 1 + 0.01192 S + 0.008558 I - 0.01231 R - 0.02946 S R + 0.04206 R^{2} \\
+\frac{dR}{dt} &= -0.01882 1 - 0.02904 I + 0.01499 S^{2} + 0.09467 S I - 0.02272 S R - 0.008572 I R - 0.0687 R^{2}
+\end{aligned}

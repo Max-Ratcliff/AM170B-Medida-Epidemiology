@@ -10,7 +10,6 @@ build/
 dist/
 *.egg-info/
 .ipynb_checkpoints/
-data/
-outputs/
-*.png
+data/owid-covid-data.csv
+data/*.csv
 *.log

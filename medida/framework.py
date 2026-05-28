@@ -88,7 +88,15 @@ class MEDIDA:
         return delta_u, state, forecast
 
     def fit(self, obs_prev, obs_curr):
-        """Execute the discovery process to identify model corrections."""
+        """Execute the discovery process to identify model corrections.
+
+        Args:
+            obs_prev (array-like): Observations at the start of the interval.
+            obs_curr (array-like): Observations at the end of the interval.
+
+        Returns:
+            MedidaResult: Object containing the discovered correction terms.
+        """
         delta_u, state, forecast = self.estimate_model_error(
             obs_prev, obs_curr
         )
@@ -151,7 +159,15 @@ class MEDIDA:
         return self.result_.error_coefficients
 
     def corrected_coefficients(self, model_coefficients):
-        """Apply discovered corrections to baseline model coefficients."""
+        """Apply discovered corrections to baseline model coefficients.
+
+        Args:
+            model_coefficients (np.ndarray): The baseline (imperfect) system
+                coefficients.
+
+        Returns:
+            np.ndarray: The corrected coefficient matrix.
+        """
         if self.result_ is None:
             raise RuntimeError(
                 "Model must be fitted before generating corrections."
@@ -172,7 +188,24 @@ def sample_observations(
     sigma_obs=0.0,
     noise_seed=1,
 ):
-    """Generate observation pairs for finite-dimensional ODE systems."""
+    """Generate observation pairs for finite-dimensional ODE systems.
+
+    Args:
+        system (DynamicalSystem): The true system to sample from.
+        n_samples (int): Number of observation pairs to generate.
+        dt (float): Time interval between observations in a pair.
+        spinup (float): Time to evolve from random ICs to the attractor.
+        spin_dt (float): Time step used during the spinup integration.
+        ic_scale (float): Standard deviation for initial random ICs.
+        method (str): Integration method ('rk4' or 'euler').
+        substeps (int): Number of internal integration steps per dt.
+        seed (int): Random seed for initial conditions.
+        sigma_obs (float): Standard deviation of Gaussian observation noise.
+        noise_seed (int): Random seed for the observation noise.
+
+    Returns:
+        tuple: (obs_prev, obs_curr, truth_prev, truth_curr) as numpy arrays.
+    """
     rng = np.random.default_rng(seed)
     ic = rng.standard_normal((n_samples, system.dim)) * ic_scale
 
