@@ -13,3 +13,5 @@ dist/
 data/owid-covid-data.csv
 data/*.csv
 *.log
+.ruff_cache/
+.ruff_cache
