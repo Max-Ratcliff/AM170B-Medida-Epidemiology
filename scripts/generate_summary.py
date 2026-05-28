@@ -5,87 +5,106 @@ import seaborn as sns
 import pandas as pd
 import numpy as np
 
-# Add the project root to sys.path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from scripts.utils import apply_publication_theme
 
-# Final compiled data
-data = [
-    {"Country": "Brazil", "Improvement": 4.32},
-    {"Country": "Norway", "Improvement": 4.10},
-    {"Country": "Sweden", "Improvement": 4.06},
-    {"Country": "United States", "Improvement": 3.98},
-    {"Country": "Germany", "Improvement": 3.52},
-    {"Country": "Italy", "Improvement": 1.87},
-    {"Country": "South Korea", "Improvement": 0.86},
-    {"Country": "Australia", "Improvement": 0.60},
-    {"Country": "India", "Improvement": 0.54},
-    {"Country": "Poland", "Improvement": 0.51},
-    {"Country": "South Africa", "Improvement": 0.50},
-    {"Country": "Japan", "Improvement": 0.43},
-]
+SWEEP_CSV = os.path.join(project_root, "outputs", "covid", "italy", "sweep_results.csv")
 
-df = pd.DataFrame(data).sort_values("Improvement", ascending=True)
 
-# Visual Setup
-apply_publication_theme()
-# Tall figure to prevent crowding
-fig, ax = plt.subplots(figsize=(16, 12))
+def load_sweep_results():
+    if not os.path.exists(SWEEP_CSV):
+        raise FileNotFoundError(
+            f"Sweep results not found at {SWEEP_CSV}.\n"
+            "Run: python scripts/covid_analysis.py --train-country Italy --sweep"
+        )
+    return pd.read_csv(SWEEP_CSV)
 
-# Professional Palette
-success_color = "#2c7bb6" # Strong Blue (Generalization)
-fail_color = "#d7191c"    # Strong Red (Specificity)
 
-def get_color(val):
-    if val >= 2.0: return success_color
-    if val >= 1.0: return "#abd9e9" # Light Blue
-    return fail_color
+def plot_ablation_summary(results_df, output_path):
+    """Bar chart showing top-10 and bottom-10 countries by improvement ratio."""
+    apply_publication_theme()
 
-colors = [get_color(x) for x in df["Improvement"]]
+    top10 = results_df.nlargest(10, "improvement")[["country", "improvement", "lockdown"]]
+    bottom10 = results_df.nsmallest(10, "improvement")[["country", "improvement", "lockdown"]]
+    display = pd.concat([top10, bottom10]).drop_duplicates("country").sort_values("improvement")
 
-# Plot: Professional Full Bars
-y_pos = np.arange(len(df))
-bars = ax.barh(y_pos, df["Improvement"], color=colors, height=0.7, edgecolor='white', lw=1.5, zorder=3)
+    success_color, fail_color = "#2c7bb6", "#d7191c"
 
-# Accuracy labels inside or next to bars
-for i, x in enumerate(df["Improvement"]):
-    ax.text(x + 0.1, i, f"{x:.2f}x Accuracy", va='center', fontsize=16, fontweight='bold', color="#333333")
+    def bar_color(row):
+        if row["improvement"] >= 1.5:
+            return success_color
+        if row["improvement"] >= 1.0:
+            return "#abd9e9"
+        return fail_color
 
-# The "Break-even" Baseline (Moved to top/bottom cleanly)
-ax.axvline(1.0, color='black', ls='-', lw=3, alpha=0.8, zorder=4)
-# Top baseline label
-ax.text(1.0, 11.6, "STANDARD SIR MODEL\n(BASELINE ACCURACY)", ha='center', va='bottom', 
-         fontsize=12, fontweight='black', color='black', bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="black", lw=1))
+    colors = [bar_color(r) for _, r in display.iterrows()]
 
-# LARGE CATEGORY HEADERS (Top section)
-# Universal Side
-plt.text(3.5, 13.0, "UNIVERSAL GENERALIZATION\n(FUNDAMENTAL HUMAN DYNAMICS)", 
-         ha='center', va='bottom', fontsize=18, fontweight='black', color=success_color,
-         bbox=dict(boxstyle="round,pad=0.6", fc="#f7f7f7", ec=success_color, lw=2.5))
+    fig, ax = plt.subplots(figsize=(16, 12))
+    y_pos = np.arange(len(display))
+    ax.barh(
+        y_pos, display["improvement"], color=colors, height=0.7, edgecolor="white", lw=1.5, zorder=3
+    )
 
-# Local Side
-plt.text(0.5, 13.0, "LOCAL SPECIFICITY\n(POLICY & DATA ARTIFACTS)", 
-         ha='center', va='bottom', fontsize=18, fontweight='black', color=fail_color,
-         bbox=dict(boxstyle="round,pad=0.6", fc="#f7f7f7", ec=fail_color, lw=2.5))
+    for i, (_, row) in enumerate(display.iterrows()):
+        ax.text(
+            row["improvement"] + 0.05,
+            i,
+            f"{row['improvement']:.2f}×",
+            va="center",
+            fontsize=14,
+            fontweight="bold",
+            color="#333333",
+        )
 
-# Formatting
-ax.set_yticks(y_pos)
-ax.set_yticklabels(df["Country"], fontsize=18, fontweight='bold')
-ax.set_xlim(0, 6.0) # More padding for labels
-ax.set_xlabel("Global Median Improvement Ratio ($SIR \\div MEDIDA$)", fontsize=20, labelpad=30, fontweight='bold')
-ax.set_title("DISCOVERING UNIVERSAL EPIDEMIOLOGICAL LAWS", 
-             fontsize=24, fontweight="black", pad=120)
+    ax.axvline(1.0, color="black", ls="-", lw=2.5, alpha=0.8, zorder=4)
+    ax.text(
+        1.02,
+        len(display) - 0.5,
+        "Baseline\n(Naive SIR)",
+        va="top",
+        fontsize=11,
+        fontweight="bold",
+        color="black",
+    )
 
-# Clean up axes
-sns.despine(left=True, bottom=False, trim=True)
-ax.grid(axis='x', ls=':', alpha=0.3)
+    n_countries = len(results_df)
+    n_improve = int((results_df["improvement"] >= 1.0).sum())
+    median_imp = results_df["improvement"].median()
+    ax.set_title(
+        f"MEDIDA GLOBAL TRANSFER: {n_improve}/{n_countries} COUNTRIES IMPROVE\n"
+        f"Median improvement: {median_imp:.2f}×  |  Trained on Italy",
+        fontsize=18,
+        fontweight="black",
+        pad=15,
+    )
 
-plt.tight_layout()
-output_dir = "outputs/summary"
-os.makedirs(output_dir, exist_ok=True)
-plt.savefig(os.path.join(output_dir, "master_ablation_summary.png"), dpi=300, bbox_inches='tight')
-plt.close()
-print(f"[*] Master Research Summary finalized with full bars: {output_dir}/master_ablation_summary.png")
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(display["country"], fontsize=14, fontweight="bold")
+    ax.set_xlabel(
+        "ACCURACY IMPROVEMENT RATIO  (Naive SIR RMSE ÷ MEDIDA RMSE)",
+        fontsize=14,
+        labelpad=12,
+        fontweight="bold",
+    )
+    ax.set_xlim(0, display["improvement"].max() * 1.2)
+    sns.despine(left=True)
+    ax.grid(axis="x", ls=":", alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close()
+    print(f"[summary] Saved {output_path}")
+
+
+def main():
+    results_df = load_sweep_results()
+    output_dir = os.path.join(project_root, "outputs", "summary")
+    os.makedirs(output_dir, exist_ok=True)
+    plot_ablation_summary(results_df, os.path.join(output_dir, "master_ablation_summary.png"))
+
+
+if __name__ == "__main__":
+    main()
