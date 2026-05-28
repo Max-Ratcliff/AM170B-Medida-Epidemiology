@@ -32,13 +32,12 @@ df = pd.DataFrame(data).sort_values("Improvement", ascending=True)
 
 # Visual Setup
 apply_publication_theme()
-# Increase height to 12 to prevent vertical crowding
-fig, ax = plt.subplots(figsize=(15, 12))
+# Tall figure to prevent crowding
+fig, ax = plt.subplots(figsize=(16, 12))
 
 # Professional Palette
 success_color = "#2c7bb6" # Strong Blue (Generalization)
 fail_color = "#d7191c"    # Strong Red (Specificity)
-neutral_color = "#999999" # Gray
 
 def get_color(val):
     if val >= 2.0: return success_color
@@ -47,47 +46,46 @@ def get_color(val):
 
 colors = [get_color(x) for x in df["Improvement"]]
 
-# Plot: Modern Clean Lollipop
+# Plot: Professional Full Bars
 y_pos = np.arange(len(df))
-# Faint horizontal tracks
-ax.hlines(y_pos, 0, 5.5, color='gray', alpha=0.05, lw=1, zorder=0)
-# Data lines
-ax.hlines(y_pos, 1, df["Improvement"], color=colors, alpha=0.6, lw=3, zorder=1)
-# Large Markers
-ax.scatter(df["Improvement"], y_pos, color=colors, s=400, edgecolors='white', lw=2.5, zorder=3)
+bars = ax.barh(y_pos, df["Improvement"], color=colors, height=0.7, edgecolor='white', lw=1.5, zorder=3)
 
-# Value labels (Clearly to the right)
+# Accuracy labels inside or next to bars
 for i, x in enumerate(df["Improvement"]):
-    ax.text(x + 0.15, i, f"{x:.2f}x", va='center', fontsize=16, fontweight='bold', color="#333333")
+    ax.text(x + 0.1, i, f"{x:.2f}x Accuracy", va='center', fontsize=16, fontweight='bold', color="#333333")
 
-# The "Break-even" Wall
-ax.axvline(1.0, color='#333333', ls='-', lw=3, alpha=0.9, zorder=2)
-plt.text(1.0, -1.2, "NAIVE SIR MODEL\n(BREAK-EVEN)", ha='center', va='top', 
-         fontsize=13, fontweight='black', color='#333333')
+# The "Break-even" Baseline (Moved to top/bottom cleanly)
+ax.axvline(1.0, color='black', ls='-', lw=3, alpha=0.8, zorder=4)
+# Top baseline label
+ax.text(1.0, 11.6, "STANDARD SIR MODEL\n(BASELINE ACCURACY)", ha='center', va='bottom', 
+         fontsize=12, fontweight='black', color='black', bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="black", lw=1))
 
-# LARGE CATEGORY HEADERS (Moved far from data)
+# LARGE CATEGORY HEADERS (Top section)
 # Universal Side
-plt.text(3.5, 12.2, "UNIVERSAL GENERALIZATION\n(FUNDAMENTAL DYNAMICS)", 
-         ha='center', va='bottom', fontsize=16, fontweight='black', color=success_color,
-         bbox=dict(boxstyle="round,pad=0.5", fc="#f7f7f7", ec=success_color, lw=2))
+plt.text(3.5, 13.0, "UNIVERSAL GENERALIZATION\n(FUNDAMENTAL HUMAN DYNAMICS)", 
+         ha='center', va='bottom', fontsize=18, fontweight='black', color=success_color,
+         bbox=dict(boxstyle="round,pad=0.6", fc="#f7f7f7", ec=success_color, lw=2.5))
 
 # Local Side
-plt.text(0.5, 12.2, "LOCAL SPECIFICITY\n(POLICY ARTIFACTS)", 
-         ha='center', va='bottom', fontsize=16, fontweight='black', color=fail_color,
-         bbox=dict(boxstyle="round,pad=0.5", fc="#f7f7f7", ec=fail_color, lw=2))
+plt.text(0.5, 13.0, "LOCAL SPECIFICITY\n(POLICY & DATA ARTIFACTS)", 
+         ha='center', va='bottom', fontsize=18, fontweight='black', color=fail_color,
+         bbox=dict(boxstyle="round,pad=0.6", fc="#f7f7f7", ec=fail_color, lw=2.5))
 
 # Formatting
 ax.set_yticks(y_pos)
 ax.set_yticklabels(df["Country"], fontsize=18, fontweight='bold')
-ax.set_xlim(0, 5.5)
-ax.set_xlabel("Median Global Improvement Ratio ($SIR \\div MEDIDA$)", fontsize=20, labelpad=25, fontweight='bold')
-ax.set_title("GLOBAL GENERALIZABILITY OF DISCOVERED MODEL CORRECTIONS", 
-             fontsize=22, fontweight="black", pad=100)
+ax.set_xlim(0, 6.0) # More padding for labels
+ax.set_xlabel("Global Median Improvement Ratio ($SIR \\div MEDIDA$)", fontsize=20, labelpad=30, fontweight='bold')
+ax.set_title("DISCOVERING UNIVERSAL EPIDEMIOLOGICAL LAWS", 
+             fontsize=24, fontweight="black", pad=120)
 
+# Clean up axes
 sns.despine(left=True, bottom=False, trim=True)
+ax.grid(axis='x', ls=':', alpha=0.3)
 
+plt.tight_layout()
 output_dir = "outputs/summary"
 os.makedirs(output_dir, exist_ok=True)
 plt.savefig(os.path.join(output_dir, "master_ablation_summary.png"), dpi=300, bbox_inches='tight')
 plt.close()
-print(f"[*] Master Research Summary finalized: {output_dir}/master_ablation_summary.png")
+print(f"[*] Master Research Summary finalized with full bars: {output_dir}/master_ablation_summary.png")
