@@ -229,29 +229,48 @@ def example_seir_from_sir():
 
 def example_hidden_E():
     """Analyze impact of high observation noise on hidden compartment recovery."""
+    output_dir = "outputs/synthetic/hidden_e"
+    os.makedirs(output_dir, exist_ok=True)
+    apply_publication_theme()
+
     true_system = SEIRSystem(beta=0.6, sigma=0.2, gamma=0.18)
     library = PolynomialLibrary(n_vars=3, degree=2, var_names=["S", "I", "R"])
-    imperfect_coeffs = np.zeros((library.n_features, 3))
-    imperfect_coeffs[library.index("S I"), 0] = -0.6
-    imperfect_coeffs[library.index("S I"), 1] = 0.6
-    imperfect_coeffs[library.index("I"), 1] = -0.18
-    imperfect_coeffs[library.index("I"), 2] = 0.18
-    imperfect_model = PolynomialODE(imperfect_coeffs, library, state_names=["S", "I", "R"])
+    
+    # Baseline SIR model
+    sir_coeffs = np.zeros((library.n_features, 3))
+    sir_coeffs[library.index("S I"), 0] = -0.6
+    sir_coeffs[library.index("S I"), 1] = 0.6
+    sir_coeffs[library.index("I"), 1] = -0.18
+    sir_coeffs[library.index("I"), 2] = 0.18
+    imperfect_model = PolynomialODE(sir_coeffs, library, state_names=["S", "I", "R"])
 
-    run_medida_experiment(
-        "Hidden-E Recovery",
-        true_system,
-        library,
-        np.zeros((library.n_features, 3)),
-        imperfect_coeffs,
-        u0=np.array([0.99, 0.005, 0.005, 0.0]),
-        dt_fit=0.05,
-        n_samples=2500,
-        sigma_obs=0.005,
-        ridge=1e-2,
-        significance=1e-3,
-        output_dir="outputs/synthetic/hidden_e",
+    # Generate 4D data, hide E, and add SIGNIFICANT noise
+    obs_prev, obs_curr, truth_prev_4d, truth_curr_4d = sample_hidden_E_seir_observations(
+        true_system, n_samples=2500, dt=0.05, sigma_obs=0.005, noise_seed=42
     )
+
+    # Use RidgeRVM to handle noise during hidden variable discovery
+    rvm = RidgeRVM(ridge=1e-2)
+    medida = MEDIDA(imperfect_model, library, rvm=rvm, dt=0.05, significance=1e-3)
+    result = medida.fit(obs_prev, obs_curr)
+    
+    # Generate diagnostic plots manually for the hidden variable case
+    u0 = np.array([0.99, 0.005, 0.005, 0.0])
+    n_steps = 400
+    true_traj_4d = true_system.trajectory(u0, 0.1, n_steps, substeps=16)
+    
+    cor_coeffs = result.corrected_coefficients(sir_coeffs)
+    cor_model = PolynomialODE(cor_coeffs, library, state_names=["S", "I", "R"])
+    cor_traj_3d = cor_model.trajectory(u0[[0, 2, 3]], 0.1, n_steps, substeps=16)
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(true_traj_4d[:, 2], 'k-', lw=5, label='True SEIR (I)')
+    plt.plot(cor_traj_3d[:, 1], 'g--', lw=4, label='MEDIDA (Noisy Recovery)')
+    plt.title("HIDDEN-E RECOVERY UNDER 0.5% NOISE")
+    plt.legend(); plt.grid(alpha=0.2); sns.despine()
+    plt.savefig(os.path.join(output_dir, "diagnostic_plot.png"))
+    plt.close()
+
 
 
 def example_lorenz():
@@ -582,21 +601,22 @@ def run_meta_analysis():
     output_dir = "outputs/summary/sweeps"
     os.makedirs(output_dir, exist_ok=True)
 
-    # Run sweeps for different model structural error types
-    data_sir = run_parameter_sweep("sir", grid_size=7, n_seeds=2)
-    data_sirs = run_parameter_sweep("sirs", grid_size=7, n_seeds=2)
-    data_sird = run_parameter_sweep("sird", grid_size=7, n_seeds=2)
-    data_sat = run_parameter_sweep("sat", grid_size=7, n_seeds=2)
+    def get_full_sweep(model_type):
+        bg, pg, em_f, es_f = run_parameter_sweep(model_type, grid_size=7, n_seeds=2, noise="free")
+        _, _, em_n, es_n = run_parameter_sweep(model_type, grid_size=7, n_seeds=2, noise="noisy")
+        return bg, pg, em_f, es_f, em_n, es_n
 
+    # Run sweeps for different model structural error types
     sweep_data = [
-        ("SIR (missing recovery)", *data_sir, "BETA", "GAMMA"),
-        ("SIRS (waning immunity)", *data_sirs, "BETA", "XI"),
-        ("SIRD (mortality)", *data_sird, "GAMMA", "MU"),
-        ("Nonlinear (saturation)", *data_sat, "BETA", "ALPHA"),
+        ("SIR (missing recovery)", *get_full_sweep("sir"), "BETA", "GAMMA"),
+        ("SIRS (waning immunity)", *get_full_sweep("sirs"), "BETA", "XI"),
+        ("SIRD (mortality)", *get_full_sweep("sird"), "GAMMA", "MU"),
+        ("Nonlinear (saturation)", *get_full_sweep("sat"), "BETA", "ALPHA"),
     ]
 
     plot_meta_heatmaps(sweep_data, os.path.join(output_dir, "performance_heatmaps.png"))
     plot_robustness_heatmaps(sweep_data, os.path.join(output_dir, "robustness_heatmaps.png"))
+
 
 
 if __name__ == "__main__":

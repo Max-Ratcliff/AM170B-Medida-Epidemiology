@@ -68,12 +68,23 @@ class PolynomialODE(DynamicalSystem):
 
     def rhs(self, u):
         """Evaluate the polynomial RHS using the feature library."""
-        u = np.atleast_2d(u)
-        phi = self.library.transform(u)
+        u_in = np.asarray(u, dtype=float)
+        # PDELibrary.transform handles both (n_grid,) and (n_samples, n_grid)
+        phi = self.library.transform(u_in)
         res = phi @ self.coefficients
+        
+        # If it's a scalar PDE, reshape the flattened grid points back to the input shape
+        if getattr(self.library, "kind", None) == "scalar_pde":
+            return res.reshape(u_in.shape)
+            
+        # For ODEs
         if self.dim == 1:
-            return res.ravel()
-        return res.squeeze()
+            return res.reshape(u_in.shape)
+        
+        # Multivariable ODEs (dim > 1)
+        if u_in.ndim == 1:
+            return res.squeeze() # (1, dim) -> (dim,)
+        return res # (n_samples, dim)
 
     def _get_etdrk4_coeffs(self, dt):
         """Compute and cache ETDRK4 operators for the linear spectral part.
@@ -116,12 +127,11 @@ class PolynomialODE(DynamicalSystem):
 
         def Nfun(vhat):
             # Nonlinear residual: full system tendencies minus the linear part
-            u_r = np.real(np.fft.ifft(vhat))
-            phi = lib.transform(u_r[np.newaxis, :])
-            rhs_r = phi @ self.coefficients
-            return np.fft.fft(rhs_r) - Llin * vhat
+            u_r = np.real(np.fft.ifft(vhat, axis=-1))
+            rhs_r = self.rhs(u_r)
+            return np.fft.fft(rhs_r, axis=-1) - Llin * vhat
 
-        vhat = np.fft.fft(u)
+        vhat = np.fft.fft(u, axis=-1)
         Nv = Nfun(vhat)
         a = E2 * vhat + Q * Nv
         Na = Nfun(a)
@@ -130,14 +140,15 @@ class PolynomialODE(DynamicalSystem):
         cv = E2 * a + Q * (2.0 * Nb - Nv)
         Nc = Nfun(cv)
         vhat = E * vhat + Nv * f1 + 2.0 * (Na + Nb) * f2 + Nc * f3
-        return np.real(np.fft.ifft(vhat))
+        return np.real(np.fft.ifft(vhat, axis=-1))
 
     def step(self, u, dt, method="rk4", substeps=1):
         """Advance the state. Routes to ETDRK4 if the system is a stiff PDE."""
         u_arr = np.asarray(u, dtype=float)
-        if getattr(self.library, "kind", None) == "scalar_pde" and u_arr.ndim == 1:
+        if getattr(self.library, "kind", None) == "scalar_pde":
             return self._etdrk4_step(u_arr, dt)
         return super().step(u, dt, method=method, substeps=substeps)
+
 
 
 class Lorenz63(DynamicalSystem):

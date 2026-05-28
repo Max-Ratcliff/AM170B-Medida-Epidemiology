@@ -1,6 +1,7 @@
 import sys
 import os
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 import seaborn as sns
 import pandas as pd
 import numpy as np
@@ -20,76 +21,69 @@ def load_sweep_results():
             f"Sweep results not found at {SWEEP_CSV}.\n"
             "Run: python scripts/covid_analysis.py --train-country Italy --sweep"
         )
-    return pd.read_csv(SWEEP_CSV)
+    df = pd.read_csv(SWEEP_CSV)
+    # Drop territories with essentially no data (both models predict ~0, ratio is undefined)
+    return df[df["improvement"] > 0.05].copy()
 
 
 def plot_ablation_summary(results_df, output_path):
-    """Bar chart showing top-10 and bottom-10 countries by improvement ratio."""
+    """Top-10 / bottom-10 bar chart with lockdown vs non-lockdown color coding."""
     apply_publication_theme()
 
-    top10 = results_df.nlargest(10, "improvement")[["country", "improvement", "lockdown"]]
-    bottom10 = results_df.nsmallest(10, "improvement")[["country", "improvement", "lockdown"]]
+    top10 = results_df.nlargest(10, "improvement")
+    bottom10 = results_df.nsmallest(10, "improvement")
     display = pd.concat([top10, bottom10]).drop_duplicates("country").sort_values("improvement")
 
-    success_color, fail_color = "#2c7bb6", "#d7191c"
+    lockdown_color = "#2c7bb6"
+    no_lockdown_color = "#d7191c"
+    colors = [lockdown_color if r["lockdown"] else no_lockdown_color for _, r in display.iterrows()]
 
-    def bar_color(row):
-        if row["improvement"] >= 1.5:
-            return success_color
-        if row["improvement"] >= 1.0:
-            return "#abd9e9"
-        return fail_color
-
-    colors = [bar_color(r) for _, r in display.iterrows()]
+    n_countries = len(results_df)
+    n_improve = int((results_df["improvement"] >= 1.0).sum())
+    med_lock = results_df[results_df["lockdown"]]["improvement"].median()
+    med_nolock = results_df[~results_df["lockdown"]]["improvement"].median()
 
     fig, ax = plt.subplots(figsize=(16, 12))
     y_pos = np.arange(len(display))
-    ax.barh(
-        y_pos, display["improvement"], color=colors, height=0.7, edgecolor="white", lw=1.5, zorder=3
-    )
+    ax.barh(y_pos, display["improvement"], color=colors, height=0.7, edgecolor="white", lw=1.5, zorder=3)
 
     for i, (_, row) in enumerate(display.iterrows()):
         ax.text(
-            row["improvement"] + 0.05,
+            row["improvement"] + 0.1,
             i,
-            f"{row['improvement']:.2f}×",
+            f"{row['improvement']:.1f}×",
             va="center",
-            fontsize=14,
+            fontsize=13,
             fontweight="bold",
             color="#333333",
         )
 
     ax.axvline(1.0, color="black", ls="-", lw=2.5, alpha=0.8, zorder=4)
-    ax.text(
-        1.02,
-        len(display) - 0.5,
-        "Baseline\n(Naive SIR)",
-        va="top",
-        fontsize=11,
-        fontweight="bold",
-        color="black",
-    )
+    ax.text(1.04, len(display) - 0.5, "Naive SIR\nbaseline", va="top", fontsize=10, color="black")
 
-    n_countries = len(results_df)
-    n_improve = int((results_df["improvement"] >= 1.0).sum())
-    median_imp = results_df["improvement"].median()
+    # Legend
+    leg = [
+        mpatches.Patch(color=lockdown_color, label=f"National lockdown (median {med_lock:.1f}×)"),
+        mpatches.Patch(color=no_lockdown_color, label=f"No lockdown (median {med_nolock:.1f}×)"),
+    ]
+    ax.legend(handles=leg, loc="lower right", fontsize=13)
+
     ax.set_title(
-        f"MEDIDA GLOBAL TRANSFER: {n_improve}/{n_countries} COUNTRIES IMPROVE\n"
-        f"Median improvement: {median_imp:.2f}×  |  Trained on Italy",
-        fontsize=18,
+        f"MEDIDA GLOBAL TRANSFER: {n_improve}/{n_countries} COUNTRIES IMPROVE  (Trained on Italy)\n"
+        f"Lockdown countries: {med_lock:.1f}× median  |  Non-lockdown: {med_nolock:.1f}× median",
+        fontsize=16,
         fontweight="black",
-        pad=15,
+        pad=12,
     )
-
     ax.set_yticks(y_pos)
-    ax.set_yticklabels(display["country"], fontsize=14, fontweight="bold")
+    ax.set_yticklabels(display["country"], fontsize=13, fontweight="bold")
     ax.set_xlabel(
         "ACCURACY IMPROVEMENT RATIO  (Naive SIR RMSE ÷ MEDIDA RMSE)",
-        fontsize=14,
-        labelpad=12,
+        fontsize=13,
+        labelpad=10,
         fontweight="bold",
     )
-    ax.set_xlim(0, display["improvement"].max() * 1.2)
+    ax.set_xlim(0, display["improvement"].max() * 1.15)
     sns.despine(left=True)
     ax.grid(axis="x", ls=":", alpha=0.3)
 

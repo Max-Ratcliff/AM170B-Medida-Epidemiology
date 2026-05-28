@@ -289,7 +289,7 @@ def plot_global_choropleth(results_df, train_country, output_path):
     fig.write_image(output_path, scale=2)
 
 
-def plot_effective_beta(states, imp_coeffs, train_coeffs, lib, beta_est, output_path):
+def plot_effective_beta(states, imp_coeffs, train_coeffs, lib, beta_est, output_path, has_lockdown=True):
     """Visualize the time-varying transmission rate discovered by MEDIDA."""
     apply_publication_theme()
     op = states[:-1]
@@ -307,7 +307,8 @@ def plot_effective_beta(states, imp_coeffs, train_coeffs, lib, beta_est, output_
     fig, ax = plt.subplots(figsize=(14, 6))
     t = np.arange(len(op))
     ax.plot(t, np.clip(beta_eff_corr, 0, y_cap), color="#33a02c", lw=3, label="MEDIDA β(t)")
-    ax.axvline(COVID_LOCKDOWN_DAY, color="#6a3d9a", lw=2, ls=":", label="Lockdown onset (Day 8)")
+    if has_lockdown:
+        ax.axvline(COVID_LOCKDOWN_DAY, color="#6a3d9a", lw=2, ls=":", label="Lockdown onset (Day 8)")
 
     # Naive β is above the visible range — draw it as a clipped line + annotation
     ax.axhline(y_cap, color="#e31a1c", lw=1.5, ls="--", alpha=0.4)
@@ -552,6 +553,7 @@ def main():
         lib,
         beta_est,
         os.path.join(output_dir, "effective_beta.png"),
+        has_lockdown=args.train_country in LOCKDOWN_COUNTRIES,
     )
 
     plot_epidemic_residuals(
