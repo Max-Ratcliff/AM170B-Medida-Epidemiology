@@ -44,7 +44,9 @@ class PolynomialLibrary(FeatureLibrary):
         exps = []
         lowest = 0 if self.include_bias else 1
         for total in range(lowest, self.degree + 1):
-            for combo in combinations_with_replacement(range(self.n_vars), total):
+            for combo in combinations_with_replacement(
+                range(self.n_vars), total
+            ):
                 e = [0] * self.n_vars
                 for idx in combo:
                     e[idx] += 1
@@ -85,13 +87,19 @@ class PDELibrary(FeatureLibrary):
 
     kind = "scalar_pde"
 
-    def __init__(self, n_grid, length, poly_order=4, deriv_order=4, include_bias=True):
+    def __init__(
+        self, n_grid, length, poly_order=4, deriv_order=4, include_bias=True
+    ):
         self.n_grid = int(n_grid)
         self.length = float(length)
         self.poly_order = int(poly_order)
         self.deriv_order = int(deriv_order)
         self.include_bias = bool(include_bias)
-        self.k = 2.0 * np.pi * np.fft.fftfreq(self.n_grid, d=self.length / self.n_grid)
+        self.k = (
+            2.0
+            * np.pi
+            * np.fft.fftfreq(self.n_grid, d=self.length / self.n_grid)
+        )
         self.terms = []
         self.feature_names = []
         if self.include_bias:

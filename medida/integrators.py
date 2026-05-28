@@ -38,7 +38,9 @@ def integrate(rhs, u0, dt, n_steps, method="rk4", substeps=1):
         Full trajectory array of shape (n_steps + 1, ...).
     """
     if method not in INTEGRATORS:
-        raise KeyError(f"Unsupported integrator '{method}'; choose from {list(INTEGRATORS)}")
+        raise KeyError(
+            f"Unsupported integrator '{method}'; choose from {list(INTEGRATORS)}"
+        )
 
     step_func = INTEGRATORS[method]
     h = dt / substeps

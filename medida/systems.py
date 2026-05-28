@@ -20,7 +20,9 @@ class DynamicalSystem(ABC):
 
     def step(self, u, dt, method="rk4", substeps=1):
         """Advance the system state by a time interval dt."""
-        return integrate(self.rhs, u, dt, 1, method=method, substeps=substeps)[-1]
+        return integrate(self.rhs, u, dt, 1, method=method, substeps=substeps)[
+            -1
+        ]
 
     def trajectory(self, u0, dt, n_steps, method="rk4", substeps=1):
         """Integrate the system from u0 and return the full trajectory."""
@@ -72,19 +74,19 @@ class PolynomialODE(DynamicalSystem):
         # PDELibrary.transform handles both (n_grid,) and (n_samples, n_grid)
         phi = self.library.transform(u_in)
         res = phi @ self.coefficients
-        
+
         # If it's a scalar PDE, reshape the flattened grid points back to the input shape
         if getattr(self.library, "kind", None) == "scalar_pde":
             return res.reshape(u_in.shape)
-            
+
         # For ODEs
         if self.dim == 1:
             return res.reshape(u_in.shape)
-        
+
         # Multivariable ODEs (dim > 1)
         if u_in.ndim == 1:
-            return res.squeeze() # (1, dim) -> (dim,)
-        return res # (n_samples, dim)
+            return res.squeeze()  # (1, dim) -> (dim,)
+        return res  # (n_samples, dim)
 
     def _get_etdrk4_coeffs(self, dt):
         """Compute and cache ETDRK4 operators for the linear spectral part.
@@ -113,9 +115,15 @@ class PolynomialODE(DynamicalSystem):
         r = np.exp(1j * np.pi * (np.arange(1, M + 1) - 0.5) / M)
         LR = dt * Llin[:, None] + r[None, :]
         Q = dt * np.mean((np.exp(LR / 2.0) - 1.0) / LR, axis=1)
-        f1 = dt * np.mean((-4.0 - LR + np.exp(LR) * (4.0 - 3.0 * LR + LR**2)) / LR**3, axis=1)
-        f2 = dt * np.mean((2.0 + LR + np.exp(LR) * (-2.0 + LR)) / LR**3, axis=1)
-        f3 = dt * np.mean((-4.0 - 3.0 * LR - LR**2 + np.exp(LR) * (4.0 - LR)) / LR**3, axis=1)
+        f1 = dt * np.mean(
+            (-4.0 - LR + np.exp(LR) * (4.0 - 3.0 * LR + LR**2)) / LR**3, axis=1
+        )
+        f2 = dt * np.mean(
+            (2.0 + LR + np.exp(LR) * (-2.0 + LR)) / LR**3, axis=1
+        )
+        f3 = dt * np.mean(
+            (-4.0 - 3.0 * LR - LR**2 + np.exp(LR) * (4.0 - LR)) / LR**3, axis=1
+        )
         coeffs = (E, E2, Q, f1, f2, f3, Llin)
         self._etdrk4_cache[dt] = coeffs
         return coeffs
@@ -148,7 +156,6 @@ class PolynomialODE(DynamicalSystem):
         if getattr(self.library, "kind", None) == "scalar_pde":
             return self._etdrk4_step(u_arr, dt)
         return super().step(u, dt, method=method, substeps=substeps)
-
 
 
 class Lorenz63(DynamicalSystem):
@@ -215,11 +222,19 @@ class KSSystem(DynamicalSystem):
         LR = dt * Llin[:, None] + r[None, :]
         Q = dt * np.real(np.mean((np.exp(LR / 2.0) - 1.0) / LR, axis=1))
         f1 = dt * np.real(
-            np.mean((-4.0 - LR + np.exp(LR) * (4.0 - 3.0 * LR + LR**2)) / LR**3, axis=1)
+            np.mean(
+                (-4.0 - LR + np.exp(LR) * (4.0 - 3.0 * LR + LR**2)) / LR**3,
+                axis=1,
+            )
         )
-        f2 = dt * np.real(np.mean((2.0 + LR + np.exp(LR) * (-2.0 + LR)) / LR**3, axis=1))
+        f2 = dt * np.real(
+            np.mean((2.0 + LR + np.exp(LR) * (-2.0 + LR)) / LR**3, axis=1)
+        )
         f3 = dt * np.real(
-            np.mean((-4.0 - 3.0 * LR - LR**2 + np.exp(LR) * (4.0 - LR)) / LR**3, axis=1)
+            np.mean(
+                (-4.0 - 3.0 * LR - LR**2 + np.exp(LR) * (4.0 - LR)) / LR**3,
+                axis=1,
+            )
         )
         g = -0.5j * self.k * self.beta
         coeffs = (E, E2, Q, f1, f2, f3, g)

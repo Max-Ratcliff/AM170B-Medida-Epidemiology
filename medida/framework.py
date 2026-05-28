@@ -41,7 +41,14 @@ class MEDIDA:
     """
 
     def __init__(
-        self, model, library, rvm=None, dt=1e-3, enkf=None, sigma_obs=0.0, significance=1e-3
+        self,
+        model,
+        library,
+        rvm=None,
+        dt=1e-3,
+        enkf=None,
+        sigma_obs=0.0,
+        significance=1e-3,
     ):
         self.model = model
         self.library = library
@@ -82,16 +89,22 @@ class MEDIDA:
 
     def fit(self, obs_prev, obs_curr):
         """Execute the discovery process to identify model corrections."""
-        delta_u, state, forecast = self.estimate_model_error(obs_prev, obs_curr)
+        delta_u, state, forecast = self.estimate_model_error(
+            obs_prev, obs_curr
+        )
         Phi = self.library.transform(state)
         kind = getattr(self.library, "kind", "vector_ode")
         n_features = self.library.n_features
 
         if kind == "scalar_pde":
             target = delta_u.reshape(-1)
-            tendency = np.asarray(self.model.rhs(state), dtype=float).reshape(-1)
+            tendency = np.asarray(self.model.rhs(state), dtype=float).reshape(
+                -1
+            )
             # Threshold based on baseline model tendency magnitude
-            if np.linalg.norm(target) <= self.significance * np.linalg.norm(tendency):
+            if np.linalg.norm(target) <= self.significance * np.linalg.norm(
+                tendency
+            ):
                 error_coeffs = np.zeros(n_features)
                 supports = [np.array([], dtype=int)]
             else:
@@ -102,7 +115,9 @@ class MEDIDA:
             dim = delta_u.shape[1]
             error_coeffs = np.zeros((n_features, dim))
             supports = []
-            tendency = np.asarray(self.model.rhs(state), dtype=float).reshape(-1, dim)
+            tendency = np.asarray(self.model.rhs(state), dtype=float).reshape(
+                -1, dim
+            )
             for j in range(dim):
                 target = delta_u[:, j]
                 tend_norm = np.linalg.norm(tendency[:, j])
@@ -130,13 +145,17 @@ class MEDIDA:
     def error_coefficients_(self):
         """Retrive discovered coefficients after fitting."""
         if self.result_ is None:
-            raise RuntimeError("Model must be fitted before accessing coefficients.")
+            raise RuntimeError(
+                "Model must be fitted before accessing coefficients."
+            )
         return self.result_.error_coefficients
 
     def corrected_coefficients(self, model_coefficients):
         """Apply discovered corrections to baseline model coefficients."""
         if self.result_ is None:
-            raise RuntimeError("Model must be fitted before generating corrections.")
+            raise RuntimeError(
+                "Model must be fitted before generating corrections."
+            )
         return self.result_.corrected_coefficients(model_coefficients)
 
 
@@ -158,13 +177,21 @@ def sample_observations(
     ic = rng.standard_normal((n_samples, system.dim)) * ic_scale
 
     spin_steps = max(int(round(spinup / spin_dt)), 1)
-    truth_prev = integrate(system.rhs, ic, spin_dt, spin_steps, method=method)[-1]
-    truth_curr = integrate(system.rhs, truth_prev, dt, 1, method=method, substeps=substeps)[-1]
+    truth_prev = integrate(system.rhs, ic, spin_dt, spin_steps, method=method)[
+        -1
+    ]
+    truth_curr = integrate(
+        system.rhs, truth_prev, dt, 1, method=method, substeps=substeps
+    )[-1]
 
     if sigma_obs > 0.0:
         noise_rng = np.random.default_rng(noise_seed)
-        obs_prev = truth_prev + noise_rng.normal(0.0, sigma_obs, truth_prev.shape)
-        obs_curr = truth_curr + noise_rng.normal(0.0, sigma_obs, truth_curr.shape)
+        obs_prev = truth_prev + noise_rng.normal(
+            0.0, sigma_obs, truth_prev.shape
+        )
+        obs_curr = truth_curr + noise_rng.normal(
+            0.0, sigma_obs, truth_curr.shape
+        )
     else:
         obs_prev = truth_prev.copy()
         obs_curr = truth_curr.copy()
@@ -181,13 +208,19 @@ def sample_simplex_observations(
         dim = getattr(system, "dim", 3)
         alpha = np.ones(dim)
 
-    truth_prev = rng.dirichlet(alpha=np.asarray(alpha, dtype=float), size=n_samples)
+    truth_prev = rng.dirichlet(
+        alpha=np.asarray(alpha, dtype=float), size=n_samples
+    )
     truth_curr = integrate(system.rhs, truth_prev, dt, 1, substeps=8)[-1]
 
     if sigma_obs > 0.0:
         noise_rng = np.random.default_rng(noise_seed)
-        obs_prev = truth_prev + noise_rng.normal(0.0, sigma_obs, truth_prev.shape)
-        obs_curr = truth_curr + noise_rng.normal(0.0, sigma_obs, truth_curr.shape)
+        obs_prev = truth_prev + noise_rng.normal(
+            0.0, sigma_obs, truth_prev.shape
+        )
+        obs_curr = truth_curr + noise_rng.normal(
+            0.0, sigma_obs, truth_curr.shape
+        )
         # Clip to ensure physical plausibility after adding noise
         obs_prev = np.clip(obs_prev, 0.0, 1.2)
         obs_curr = np.clip(obs_curr, 0.0, 1.2)
@@ -199,7 +232,14 @@ def sample_simplex_observations(
 
 
 def sample_ks_observations(
-    system, n_samples, dt, spinup_time=80.0, spin_dt=0.05, seed=0, sigma_obs=0.0, noise_seed=1
+    system,
+    n_samples,
+    dt,
+    spinup_time=80.0,
+    spin_dt=0.05,
+    seed=0,
+    sigma_obs=0.0,
+    noise_seed=1,
 ):
     """Generate Kuramoto-Sivashinsky observation pairs using spectral integration."""
     rng = np.random.default_rng(seed)
@@ -225,8 +265,12 @@ def sample_ks_observations(
 
     if sigma_obs > 0.0:
         noise_rng = np.random.default_rng(noise_seed)
-        obs_prev = truth_prev + noise_rng.normal(0.0, sigma_obs, truth_prev.shape)
-        obs_curr = truth_curr + noise_rng.normal(0.0, sigma_obs, truth_curr.shape)
+        obs_prev = truth_prev + noise_rng.normal(
+            0.0, sigma_obs, truth_prev.shape
+        )
+        obs_curr = truth_curr + noise_rng.normal(
+            0.0, sigma_obs, truth_curr.shape
+        )
     else:
         obs_prev = truth_prev.copy()
         obs_curr = truth_curr.copy()
@@ -234,15 +278,21 @@ def sample_ks_observations(
     return obs_prev, obs_curr, truth_prev, truth_curr
 
 
-def sample_hidden_E_seir_observations(system, n_samples, dt, seed=0, sigma_obs=0.0, noise_seed=1):
+def sample_hidden_E_seir_observations(
+    system, n_samples, dt, seed=0, sigma_obs=0.0, noise_seed=1
+):
     """Generate SEIR trajectories and discard the latent 'Exposed' compartment."""
     rng = np.random.default_rng(seed)
-    truth_prev_4d = rng.dirichlet(alpha=np.array([3.0, 0.8, 0.8, 2.0]), size=n_samples)
+    truth_prev_4d = rng.dirichlet(
+        alpha=np.array([3.0, 0.8, 0.8, 2.0]), size=n_samples
+    )
     truth_prev_4d[:, 1] = np.maximum(truth_prev_4d[:, 1], 1e-4)  # Exposed
     truth_prev_4d[:, 2] = np.maximum(truth_prev_4d[:, 2], 1e-4)  # Infectious
     truth_prev_4d /= truth_prev_4d.sum(axis=1, keepdims=True)
 
-    truth_curr_4d = integrate(system.rhs, truth_prev_4d, dt, 1, method="rk4", substeps=8)[-1]
+    truth_curr_4d = integrate(
+        system.rhs, truth_prev_4d, dt, 1, method="rk4", substeps=8
+    )[-1]
 
     # Indices 0, 2, 3 correspond to S, I, R (hiding E at index 1)
     truth_prev_3d = truth_prev_4d[:, [0, 2, 3]]
@@ -250,8 +300,12 @@ def sample_hidden_E_seir_observations(system, n_samples, dt, seed=0, sigma_obs=0
 
     if sigma_obs > 0.0:
         noise_rng = np.random.default_rng(noise_seed)
-        obs_prev_3d = truth_prev_3d + noise_rng.normal(0.0, sigma_obs, truth_prev_3d.shape)
-        obs_curr_3d = truth_curr_3d + noise_rng.normal(0.0, sigma_obs, truth_curr_3d.shape)
+        obs_prev_3d = truth_prev_3d + noise_rng.normal(
+            0.0, sigma_obs, truth_prev_3d.shape
+        )
+        obs_curr_3d = truth_curr_3d + noise_rng.normal(
+            0.0, sigma_obs, truth_curr_3d.shape
+        )
         obs_prev_3d = np.clip(obs_prev_3d, 0.0, 1.2)
         obs_curr_3d = np.clip(obs_curr_3d, 0.0, 1.2)
     else:

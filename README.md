@@ -1,89 +1,172 @@
-# MEDIDA: Model Error Discovery with Iterative Data Assimilation
+# MEDIDA for Epidemiology
 
-MEDIDA is an object-oriented Python framework for discovering and correcting structural errors in dynamical systems, specifically focused on epidemiology and physics models. It leverages **Sparse Bayesian Regression** (via Relevance Vector Machines) and **Data Assimilation** (via the Ensemble Kalman Filter) to bridge the gap between imperfect theoretical models and observed data.
+UCSC AM 170B math modeling research project by Alejandro Munoz, Alexander
+Spetzler, Anirudh Raja, Matteo Tasso, and Max Ratcliff.
 
-## Features
+This repository applies MEDIDA to synthetic epidemic models and historical
+COVID-19 data. In the 2022 paper,
+MEDIDA stands for **Model Error Discovery with Interpretability and Data
+Assimilation**. The method was introduced on a chaotic Kuramoto-Sivashinsky
+PDE test case, so our project asks whether the same model-error discovery idea
+can be moved from a physics setting into epidemiological compartment models.
 
-- **Structural Discovery**: Identify missing terms in ODE and PDE systems by learning corrections from sparse, noisy observations.
-- **Library-Based Regression**: Support for polynomial, PDE (spectral), and custom nonlinear feature libraries.
-- **Data Assimilation**: Integrated Ensemble Kalman Filter (EnKF) for robust state estimation and denoising in high-noise environments.
-- **High-Performance PDE Support**: Specialized `KSSystem` implementation using **ETDRK4** for stable integration of the Kuramoto-Sivashinsky equation.
-- **Real-World Analysis**: Built-in support for analyzing COVID-19 pandemic data from Our World in Data (OWID).
+The main research question is:
 
-## Project Structure
+> Can MEDIDA be applied beyond physics systems to recover missing or inaccurate
+> terms in epidemiological models and improve their predictive accuracy?
 
-- `medida/`: Core library package.
-  - `framework.py`: MEDIDA core discovery logic and Result classes.
-  - `systems.py`: Definitions of dynamical systems (SIR family, Lorenz, KS).
-  - `libraries.py`: Feature libraries for symbolic regression.
-  - `regression.py`: RVM and Ridge-based sparse Bayesian regression.
-  - `assimilation.py`: Data assimilation algorithms (EnKF).
-  - `integrators.py`: Numerical solvers (RK4, Euler, Batch integration).
-  - `metrics.py`: Mathematical error metrics (normalized Eq. 16) and formatting.
-- `scripts/`: Verification scripts and real-world analysis.
-- `outputs/`: Generated diagnostic plots and results.
+The goal is not to forecast current disease conditions. The COVID portion uses
+old OWID data from March 1, 2020 through January 15, 2021 as a real-data case
+study: can a sparse, interpretable correction learned from historical epidemic
+trajectories reduce the one-step error of a simple SIR model?
 
-## Installation
+The project also includes synthetic checks on SIR-family systems, Lorenz-63,
+and the Kuramoto-Sivashinsky PDE to show that the implementation can recover
+known missing model terms when ground truth is available. The KS example is
+especially important because it reproduces the kind of physics validation used
+in the original MEDIDA paper before moving to epidemic models.
 
-### 1. Set Up the Environment
+## Repository Layout
 
-It is recommended to use a virtual environment to manage dependencies:
+- `medida/`: reusable MEDIDA implementation.
+- `scripts/verification.py`: synthetic model-error recovery experiments.
+- `scripts/covid_analysis.py`: historical COVID analysis and global transfer
+  checks.
+- `scripts/utils.py`: shared plotting, experiment, and sweep helpers.
+- `scripts/antagonistic_analysis.py`: bias check for improvement factors.
+- `data/owid-covid-data.csv`: cached OWID historical COVID dataset.
+- `outputs/`: generated figures and CSV summaries.
+
+## Environment
+
+Use the project virtual environment from the repo root:
 
 ```bash
 cd medida_epidemiology
-
-# Create a virtual environment
-python3 -m venv .venv
-
-# Activate the environment
-# On Unix/macOS:
 source .venv/bin/activate
-# On Windows:
-.venv\Scripts\activate
-```
-
-### 2. Install Dependencies
- (if needed)
-
-```bash
 pip install -r requirements.txt
 ```
 
-## Usage
+The plotting scripts force Matplotlib's noninteractive `Agg` backend, so they
+can generate PNGs from a terminal or headless session.
 
-### Run Mathematical Verification
+## Reproducing Results
 
-Reproduces the synthetic verification cases from the MEDIDA paper (SIR, SIRS, SIRD, Lorenz-63, and KS PDE):
+Run all synthetic verification figures:
 
 ```bash
 python scripts/verification.py
 ```
 
-### Run Real-World COVID-19 Analysis & Ablations
-
-Analyzes historical data to discover structural corrections. Supports choosing training sources and running global performance sweeps:
+Run the historical COVID analysis for any country name available in the OWID
+dataset:
 
 ```bash
-# Standard analysis (Default: Italy)
-python scripts/covid_analysis.py
-
-# Ablation: Train on Sweden and evaluate globally
-python scripts/covid_analysis.py --train-country Sweden --sweep
-
-# Ablation: Train on United States and evaluate globally
-python scripts/covid_analysis.py --train-country "United States" --sweep
+python scripts/covid_analysis.py --train-country "Country Name"
 ```
 
-**CLI Flags:**
-- `--train-country [NAME]`: Source country for discovering the structural correction (default: Italy).
-- `--sweep`: Iterate through all ~200 OWID countries to evaluate the "universality" of the discovered correction.
+Add `--sweep` to evaluate the learned correction across all available OWID
+countries:
 
-Results, global rankings, and effective transmission plots will be saved in `outputs/figures/`.
+```bash
+python scripts/covid_analysis.py --train-country "Country Name" --sweep
+```
+
+The sweep writes `sweep_results.csv`, `global_map.png`,
+`top50_landscape.png`, `bottom50_landscape.png`, and
+`failure_analysis_grid.png` in the corresponding country folder.
+
+<details>
+<summary>Example country calls used in this project</summary>
+
+```bash
+python scripts/covid_analysis.py --train-country Italy --sweep
+python scripts/covid_analysis.py --train-country Sweden --sweep
+python scripts/covid_analysis.py --train-country Germany --sweep
+python scripts/covid_analysis.py --train-country India --sweep
+python scripts/covid_analysis.py --train-country "South Africa" --sweep
+```
+
+</details>
+
+## Modeling Pipeline
+
+1. Build an imperfect model. For COVID, this is a standard SIR model with
+   constant transmission rate `beta` and recovery rate `gamma = 1 / 14`.
+2. Estimate one-step model error:
+   `delta_u = (observed_next - model_step(observed_current)) / dt`.
+3. Regress that error against a sparse feature library using RVM-style sparse
+   regression.
+4. Add the discovered correction to the imperfect model coefficients.
+5. Compare the imperfect and corrected one-step predictions.
+
+This follows the paper's main logic: estimate the model-error tendency from
+short model integrations, then identify a sparse closed-form correction from a
+candidate library. If observations are noisy, an EnKF can be used to estimate a
+cleaner analysis state before regression.
+
+For COVID, reported cases are converted into approximate SIR compartments:
+
+- `I(t)`: 14-day rolling sum of smoothed new cases, multiplied by 4 to account
+  for undercounting.
+- `R(t)`: cumulative estimated infections minus active infectious count.
+- `S(t)`: population minus estimated active and recovered counts.
+
+These are simple modeling assumptions for a class project, not clinical
+estimates.
+
+## Outputs
+
+Generated results are written under `outputs/`.
+
+Synthetic outputs:
+
+- `outputs/synthetic/sirs/`: SIRS recovery tests.
+- `outputs/synthetic/sird/`: SIRD recovery tests.
+- `outputs/synthetic/nonlinear_sir/`: nonlinear incidence recovery test.
+- `outputs/synthetic/seir_from_sir/`: hidden-exposed-compartment experiments.
+- `outputs/synthetic/hidden_e/`: noisy hidden-variable stress test.
+- `outputs/synthetic/lorenz/`: Lorenz-63 controlled model-error experiments.
+- `outputs/synthetic/ks_pde/`: Kuramoto-Sivashinsky PDE reconstruction.
+- `outputs/summary/sweeps/`: parameter-sweep heatmaps across synthetic systems.
+
+COVID outputs:
+
+Each folder under `outputs/covid/{country}/` contains discovered correction
+figures, one-step residual plots, transfer checks, and optional global sweep
+results. `sweep_results.csv` stores the country-level improvement factors used
+by the maps and ranking plots.
+
+This repository includes pre-generated outputs for:
+
+- `outputs/covid/italy/`
+- `outputs/covid/sweden/`
+- `outputs/covid/germany/`
+- `outputs/covid/india/`
+- `outputs/covid/south_africa/`
+
+These countries were chosen as representative test cases for our project, but
+the analysis script is not limited to them.
+
+## Limitations
+
+- COVID results are based on historical reported-case data and simple
+  compartment estimates, not direct measurements of susceptible, infectious,
+  and recovered populations.
+- The 4x undercount multiplier and 14-day infectious window are modeling
+  assumptions.
+- Global maps show one-step prediction improvement, not long-term forecasting
+  accuracy.
+- A correction trained on one country can help many countries but can also fail;
+  the bottom-50 and failure-grid plots should be kept visible in the project
+  record.
+- Data assimilation is not uniformly beneficial in every synthetic setup. In
+  the current Lorenz noisy benchmark, direct noisy regression beats the EnKF
+  configuration for several perturbations.
 
 ## References
 
-This project is a modular implementation of the research described in:
-
-- **MEDIDA Framework**: [Discovery of interpretable structural model errors by combining Bayesian sparse regression and data assimilation](https://doi.org/10.1063/5.0091282) (Mojgani et al., 2022).
-- **EnKF Tutorial**: [Understanding the Ensemble Kalman Filter](http://dx.doi.org/10.1080/00031305.2016.1141709) (Katzfuss et al., 2016).
-- **KS PDE Integration**: *Exponential Time Differencing Runge-Kutta Methods* (Cox & Matthews, 2002).
+- Mojgani et al., "Discovery of interpretable structural model errors by
+  combining Bayesian sparse regression and data assimilation", Chaos, 2022.
+- Katzfuss et al., "Understanding the Ensemble Kalman Filter", The American
+  Statistician, 2016.

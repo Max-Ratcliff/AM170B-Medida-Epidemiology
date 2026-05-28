@@ -12,7 +12,9 @@ if project_root not in sys.path:
 
 from scripts.utils import apply_publication_theme
 
-SWEEP_CSV = os.path.join(project_root, "outputs", "covid", "italy", "sweep_results.csv")
+SWEEP_CSV = os.path.join(
+    project_root, "outputs", "covid", "italy", "sweep_results.csv"
+)
 
 
 def load_sweep_results():
@@ -32,11 +34,18 @@ def plot_ablation_summary(results_df, output_path):
 
     top10 = results_df.nlargest(10, "improvement")
     bottom10 = results_df.nsmallest(10, "improvement")
-    display = pd.concat([top10, bottom10]).drop_duplicates("country").sort_values("improvement")
+    display = (
+        pd.concat([top10, bottom10])
+        .drop_duplicates("country")
+        .sort_values("improvement")
+    )
 
     lockdown_color = "#2c7bb6"
     no_lockdown_color = "#d7191c"
-    colors = [lockdown_color if r["lockdown"] else no_lockdown_color for _, r in display.iterrows()]
+    colors = [
+        lockdown_color if r["lockdown"] else no_lockdown_color
+        for _, r in display.iterrows()
+    ]
 
     n_countries = len(results_df)
     n_improve = int((results_df["improvement"] >= 1.0).sum())
@@ -45,7 +54,15 @@ def plot_ablation_summary(results_df, output_path):
 
     fig, ax = plt.subplots(figsize=(16, 12))
     y_pos = np.arange(len(display))
-    ax.barh(y_pos, display["improvement"], color=colors, height=0.7, edgecolor="white", lw=1.5, zorder=3)
+    ax.barh(
+        y_pos,
+        display["improvement"],
+        color=colors,
+        height=0.7,
+        edgecolor="white",
+        lw=1.5,
+        zorder=3,
+    )
 
     for i, (_, row) in enumerate(display.iterrows()):
         ax.text(
@@ -59,12 +76,25 @@ def plot_ablation_summary(results_df, output_path):
         )
 
     ax.axvline(1.0, color="black", ls="-", lw=2.5, alpha=0.8, zorder=4)
-    ax.text(1.04, len(display) - 0.5, "Naive SIR\nbaseline", va="top", fontsize=10, color="black")
+    ax.text(
+        1.04,
+        len(display) - 0.5,
+        "Naive SIR\nbaseline",
+        va="top",
+        fontsize=10,
+        color="black",
+    )
 
     # Legend
     leg = [
-        mpatches.Patch(color=lockdown_color, label=f"National lockdown (median {med_lock:.1f}×)"),
-        mpatches.Patch(color=no_lockdown_color, label=f"No lockdown (median {med_nolock:.1f}×)"),
+        mpatches.Patch(
+            color=lockdown_color,
+            label=f"National lockdown (median {med_lock:.1f}×)",
+        ),
+        mpatches.Patch(
+            color=no_lockdown_color,
+            label=f"No lockdown (median {med_nolock:.1f}×)",
+        ),
     ]
     ax.legend(handles=leg, loc="lower right", fontsize=13)
 
@@ -97,7 +127,9 @@ def main():
     results_df = load_sweep_results()
     output_dir = os.path.join(project_root, "outputs", "summary")
     os.makedirs(output_dir, exist_ok=True)
-    plot_ablation_summary(results_df, os.path.join(output_dir, "master_ablation_summary.png"))
+    plot_ablation_summary(
+        results_df, os.path.join(output_dir, "master_ablation_summary.png")
+    )
 
 
 if __name__ == "__main__":

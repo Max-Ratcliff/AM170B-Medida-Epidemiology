@@ -1,6 +1,9 @@
 import sys
 import os
 import numpy as np
+import matplotlib
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import seaborn as sns
 from medida import (
@@ -41,18 +44,29 @@ def apply_publication_theme():
 
 
 def save_latex_correction(
-    coeffs, feature_names, state_names, metrics, filename, title="Discovered Correction"
+    coeffs,
+    feature_names,
+    state_names,
+    metrics,
+    filename,
+    title="Discovered Correction",
 ):
     """Export the discovered model correction as a LaTeX-formatted file."""
     latex_code = format_latex_system(coeffs, feature_names, state_names)
     with open(filename, "w") as f:
         f.write(f"% {title}\n")
-        f.write("% Metrics: " + ", ".join([f"{k}: {v}" for k, v in metrics.items()]) + "\n\n")
+        f.write(
+            "% Metrics: "
+            + ", ".join([f"{k}: {v}" for k, v in metrics.items()])
+            + "\n\n"
+        )
         f.write(latex_code)
         f.write("\n")
 
 
-def save_discovery_card(coeffs, feature_names, state_names, metrics, filename, title=""):
+def save_discovery_card(
+    coeffs, feature_names, state_names, metrics, filename, title=""
+):
     """Generate a summary PNG card displaying the discovered system equations.
 
     Renders plain text equations in a monospace font for high reliability.
@@ -142,15 +156,21 @@ def run_medida_experiment(
         alpha=alpha,
     )
 
-    imperfect_model = PolynomialODE(imperfect_coeffs, library, state_names=true_system.state_names)
+    imperfect_model = PolynomialODE(
+        imperfect_coeffs, library, state_names=true_system.state_names
+    )
     from medida import RelevanceVectorMachine, RidgeRVM
 
     rvm = RidgeRVM(ridge=ridge) if ridge > 0 else RelevanceVectorMachine()
-    medida = MEDIDA(imperfect_model, library, rvm=rvm, dt=dt_fit, significance=significance)
+    medida = MEDIDA(
+        imperfect_model, library, rvm=rvm, dt=dt_fit, significance=significance
+    )
     result = medida.fit(obs_prev, obs_curr)
 
     corrected_coeffs = result.corrected_coefficients(imperfect_coeffs)
-    corrected_model = PolynomialODE(corrected_coeffs, library, state_names=true_system.state_names)
+    corrected_model = PolynomialODE(
+        corrected_coeffs, library, state_names=true_system.state_names
+    )
 
     # Calculate discovery metrics
     eps_m = coefficient_error(true_coeffs, imperfect_coeffs)
@@ -162,7 +182,10 @@ def run_medida_experiment(
 
     err_cor = float(relative_error(true_traj, cor_traj))
     improvement = eps_m / eps_star if eps_star > 1e-15 else float("inf")
-    metrics = {"Improvement": f"{improvement:.1f}x", "L2 Error": f"{err_cor:.1e}"}
+    metrics = {
+        "Improvement": f"{improvement:.1f}x",
+        "L2 Error": f"{err_cor:.1e}",
+    }
 
     save_latex_correction(
         result.error_coefficients,
@@ -201,8 +224,21 @@ def run_medida_experiment(
     # Panel 2: Phase manifold reconstruction
     ax = axes[1]
     if true_system.dim >= 2:
-        ax.plot(true_traj[:, 0], true_traj[:, 1], color=colors[0], alpha=0.15, lw=2.5)
-        ax.plot(cor_traj[:, 0], cor_traj[:, 1], "--", color=colors[2], lw=4, label="RECOVERED")
+        ax.plot(
+            true_traj[:, 0],
+            true_traj[:, 1],
+            color=colors[0],
+            alpha=0.15,
+            lw=2.5,
+        )
+        ax.plot(
+            cor_traj[:, 0],
+            cor_traj[:, 1],
+            "--",
+            color=colors[2],
+            lw=4,
+            label="RECOVERED",
+        )
     ax.set_title("PHASE MANIFOLD")
     ax.set_xlabel("SUSCEPTIBLE")
     ax.set_ylabel("INFECTIOUS")
@@ -225,7 +261,12 @@ def run_medida_experiment(
 def _ps_calibrate_sigma(true_sys, alpha, dt, noise_frac, n_probe=300):
     """Calibrate observation noise level relative to state variability."""
     obs_prev, obs_curr, _, _ = sample_simplex_observations(
-        true_sys, n_samples=n_probe, dt=dt, seed=99999, sigma_obs=0.0, alpha=alpha
+        true_sys,
+        n_samples=n_probe,
+        dt=dt,
+        seed=99999,
+        sigma_obs=0.0,
+        alpha=alpha,
     )
     sigma_u = float(np.mean(np.std(np.vstack([obs_prev, obs_curr]), axis=0)))
     return noise_frac * sigma_u
@@ -279,21 +320,30 @@ def run_parameter_sweep(model_type, grid_size=13, n_seeds=4, noise="free"):
         for j, p_val in enumerate(pg):
             if model_type == "sir":
                 sys_t = SIRSystem(beta=beta, gamma=p_val)
-                lib = PolynomialLibrary(n_vars=3, degree=2, var_names=var_names)
+                lib = PolynomialLibrary(
+                    n_vars=3, degree=2, var_names=var_names
+                )
                 c_t = sys_t.coefficients(lib)
                 c_i = c_t.copy()
                 c_i[lib.index("I"), 2] = 0.0  # missing recovery
             elif model_type == "sirs":
                 gamma = 0.18
                 sys_t = SIRSSystem(beta=beta, gamma=gamma, xi=p_val)
-                lib = PolynomialLibrary(n_vars=3, degree=2, var_names=var_names)
+                lib = PolynomialLibrary(
+                    n_vars=3, degree=2, var_names=var_names
+                )
                 c_t = sys_t.coefficients(lib)
                 c_i = np.zeros_like(c_t)
-                c_i[lib.index("S I"), 0], c_i[lib.index("S I"), 1] = -beta, beta
+                c_i[lib.index("S I"), 0], c_i[lib.index("S I"), 1] = (
+                    -beta,
+                    beta,
+                )
                 c_i[lib.index("I"), 1], c_i[lib.index("I"), 2] = -gamma, gamma
             elif model_type == "sird":
                 sys_t = SIRDSystem(beta=0.6, gamma=beta, mu=p_val)
-                lib = PolynomialLibrary(n_vars=4, degree=2, var_names=var_names)
+                lib = PolynomialLibrary(
+                    n_vars=4, degree=2, var_names=var_names
+                )
                 c_t = sys_t.coefficients(lib)
                 c_i = c_t.copy()
                 c_i[lib.index("I"), 3] = 0.0
@@ -303,13 +353,25 @@ def run_parameter_sweep(model_type, grid_size=13, n_seeds=4, noise="free"):
                 lib = SaturatedSIRLibrary(a=p_val)
                 c_t = sys_t.coefficients(lib)
                 c_i = np.zeros((lib.n_features, 3))
-                c_i[lib.index("S I"), 0], c_i[lib.index("S I"), 1] = -beta, beta
+                c_i[lib.index("S I"), 0], c_i[lib.index("S I"), 1] = (
+                    -beta,
+                    beta,
+                )
                 c_i[lib.index("I"), 1], c_i[lib.index("I"), 2] = -0.18, 0.18
 
-            sigma = _ps_calibrate_sigma(sys_t, alpha, dt, 0.003) if noise == "noisy" else 0.0
+            sigma = (
+                _ps_calibrate_sigma(sys_t, alpha, dt, 0.003)
+                if noise == "noisy"
+                else 0.0
+            )
             for s in range(n_seeds):
                 obs_prev, obs_curr, _, _ = sample_simplex_observations(
-                    sys_t, nsamp, dt, seed=2000 + s, sigma_obs=sigma, alpha=alpha
+                    sys_t,
+                    nsamp,
+                    dt,
+                    seed=2000 + s,
+                    sigma_obs=sigma,
+                    alpha=alpha,
                 )
                 rvm = (
                     RidgeRVM(ridge=ridge, t_min=3.0, threshold=0.02)
@@ -325,7 +387,9 @@ def run_parameter_sweep(model_type, grid_size=13, n_seeds=4, noise="free"):
                 )
                 res = med.fit(obs_prev, obs_curr)
                 em[i, j, s] = coefficient_error(c_t, c_i)
-                es[i, j, s] = coefficient_error(c_t, res.corrected_coefficients(c_i))
+                es[i, j, s] = coefficient_error(
+                    c_t, res.corrected_coefficients(c_i)
+                )
 
     return bg, pg, em, es
 
@@ -335,10 +399,16 @@ def plot_meta_heatmaps(sweep_data, output_path):
     apply_publication_theme()
     fig, axes = plt.subplots(4, 2, figsize=(18, 26))
 
-    for row, (title, g0, g1, em_f, es_f, em_n, es_n, xl, yl) in enumerate(sweep_data):
-        for col, (label, em, es) in enumerate([("free", em_f, es_f), ("noisy", em_n, es_n)]):
+    for row, (title, g0, g1, em_f, es_f, em_n, es_n, xl, yl) in enumerate(
+        sweep_data
+    ):
+        for col, (label, em, es) in enumerate(
+            [("free", em_f, es_f), ("noisy", em_n, es_n)]
+        ):
             ax = axes[row, col]
-            impr_mean = np.nanmean(em, axis=2) / np.clip(np.nanmean(es, axis=2), 1e-12, None)
+            impr_mean = np.nanmean(em, axis=2) / np.clip(
+                np.nanmean(es, axis=2), 1e-12, None
+            )
             log_impr = np.log10(np.clip(impr_mean, 1e-3, None))
 
             im = ax.imshow(
@@ -355,7 +425,12 @@ def plot_meta_heatmaps(sweep_data, output_path):
             ax.set_title(f"{title}\n[{label.upper()}]", fontsize=14)
             plt.colorbar(im, ax=ax)
 
-    fig.suptitle("MEDIDA PERFORMANCE STRESS-TEST", fontweight="black", fontsize=26, y=0.99)
+    fig.suptitle(
+        "MEDIDA PERFORMANCE STRESS-TEST",
+        fontweight="black",
+        fontsize=26,
+        y=0.99,
+    )
     plt.tight_layout(rect=[0, 0, 1, 0.97])
     plt.savefig(output_path, dpi=300)
     plt.close()
@@ -366,7 +441,9 @@ def plot_robustness_heatmaps(sweep_data, output_path):
     apply_publication_theme()
     fig, axes = plt.subplots(2, 4, figsize=(24, 11))
 
-    for col, (title, g0, g1, em_f, es_f, em_n, es_n, xl, yl) in enumerate(sweep_data):
+    for col, (title, g0, g1, em_f, es_f, em_n, es_n, xl, yl) in enumerate(
+        sweep_data
+    ):
         short_title = title.split("truth")[0].strip()
         for row, (label, es) in enumerate([("free", es_f), ("noisy", es_n)]):
             ax = axes[row, col]
@@ -388,7 +465,9 @@ def plot_robustness_heatmaps(sweep_data, output_path):
             ax.set_title(f"{short_title} [{label.upper()}]")
             plt.colorbar(im, ax=ax)
 
-    fig.suptitle("ROBUSTNESS (LOWER IS BETTER)", fontweight="black", fontsize=26, y=0.99)
+    fig.suptitle(
+        "ROBUSTNESS (LOWER IS BETTER)", fontweight="black", fontsize=26, y=0.99
+    )
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.savefig(output_path, dpi=300)
     plt.close()

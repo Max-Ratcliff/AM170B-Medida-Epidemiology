@@ -57,12 +57,23 @@ class RelevanceVectorMachine:
             sigma = self._safe_inverse(gram)
             mu = beta * (sigma @ Phi_t_y[active])
 
-            gamma = np.clip(1.0 - alpha[active] * np.clip(np.diag(sigma), 0.0, None), 1e-12, 1.0)
+            gamma = np.clip(
+                1.0 - alpha[active] * np.clip(np.diag(sigma), 0.0, None),
+                1e-12,
+                1.0,
+            )
             alpha_new = gamma / (mu**2 + 1e-300)
             residual = y - Pa @ mu
-            beta = max((n_samples - gamma.sum()) / (residual @ residual + 1e-300), 1e-12)
+            beta = max(
+                (n_samples - gamma.sum()) / (residual @ residual + 1e-300),
+                1e-12,
+            )
 
-            delta = np.max(np.abs(np.log(alpha_new + 1e-300) - np.log(alpha[active] + 1e-300)))
+            delta = np.max(
+                np.abs(
+                    np.log(alpha_new + 1e-300) - np.log(alpha[active] + 1e-300)
+                )
+            )
             alpha[active] = alpha_new
             keep = alpha[active] < self.alpha_threshold
             pruned = not np.all(keep)

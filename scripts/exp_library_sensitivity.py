@@ -34,12 +34,18 @@ def run_library_sensitivity():
     # Common test data
     dt = 0.05
     n_samples = 1500
-    obs_prev, obs_curr, _, _ = sample_simplex_observations(true_system, n_samples, dt, seed=42)
+    obs_prev, obs_curr, _, _ = sample_simplex_observations(
+        true_system, n_samples, dt, seed=42
+    )
 
     # Libraries to test
     LIBRARIES = {
-        "Linear": PolynomialLibrary(n_vars=3, degree=1, var_names=["S", "I", "R"]),
-        "Quad-Poly": PolynomialLibrary(n_vars=3, degree=2, var_names=["S", "I", "R"]),
+        "Linear": PolynomialLibrary(
+            n_vars=3, degree=1, var_names=["S", "I", "R"]
+        ),
+        "Quad-Poly": PolynomialLibrary(
+            n_vars=3, degree=2, var_names=["S", "I", "R"]
+        ),
         "Saturated": SaturatedSIRLibrary(a=a_true),
     }
 
@@ -70,14 +76,21 @@ def run_library_sensitivity():
         # (Using a surrogate "true" coefficient mapping for non-saturated libraries)
         c_true_map = true_system.coefficients(lib)
         eps_m = coefficient_error(c_true_map, baseline_c)
-        eps_s = coefficient_error(c_true_map, res.corrected_coefficients(baseline_c))
+        eps_s = coefficient_error(
+            c_true_map, res.corrected_coefficients(baseline_c)
+        )
         results[name] = eps_m / eps_s if eps_s > 1e-15 else 1000.0
 
     # Visualization
     plt.figure(figsize=(10, 6))
     names = list(results.keys())
     values = list(results.values())
-    plt.bar(names, values, color=["#fb9a99", "#a6cee3", "#b2df8a"], edgecolor="black")
+    plt.bar(
+        names,
+        values,
+        color=["#fb9a99", "#a6cee3", "#b2df8a"],
+        edgecolor="black",
+    )
     plt.yscale("log")
     plt.ylabel("Improvement Factor (Log Scale)")
     plt.title("LIBRARY SENSITIVITY: DISCOVERING SATURATED INCIDENCE")

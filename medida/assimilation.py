@@ -26,12 +26,16 @@ class EnsembleKalmanFilter:
         rng = np.random.default_rng(self.seed)
 
         # Initialize the ensemble by perturbing the previous observation
-        ic = obs_prev[:, None, :] + rng.normal(0.0, sigma_obs, size=(n_samples, N_ens, dim))
+        ic = obs_prev[:, None, :] + rng.normal(
+            0.0, sigma_obs, size=(n_samples, N_ens, dim)
+        )
 
         # Perform a one-step forecast with the imperfect model
         # The ensemble is flattened to (n*N, dim) to be compatible with library transforms
         ic_flat = ic.reshape(n_samples * N_ens, dim)
-        fc = np.asarray(model.step(ic_flat, dt), dtype=float).reshape(n_samples, N_ens, dim)
+        fc = np.asarray(model.step(ic_flat, dt), dtype=float).reshape(
+            n_samples, N_ens, dim
+        )
         forecast_mean = fc.mean(axis=1)
 
         # Estimate the background covariance (P) from the forecast ensemble
@@ -50,7 +54,9 @@ class EnsembleKalmanFilter:
             K = P @ np.linalg.pinv(P + R)
 
         # Generate perturbed observations for the current time step
-        obs_ens = obs_curr[:, None, :] + rng.normal(0.0, sigma_obs, size=(n_samples, N_ens, dim))
+        obs_ens = obs_curr[:, None, :] + rng.normal(
+            0.0, sigma_obs, size=(n_samples, N_ens, dim)
+        )
 
         # Update the ensemble to obtain the analysis state
         innovation = obs_ens - fc

@@ -1,6 +1,9 @@
 import sys
 import os
 import numpy as np
+import matplotlib
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import seaborn as sns
 from mpl_toolkits.mplot3d import Axes3D
@@ -91,15 +94,21 @@ def example_sir_vs_sirs():
 def example_sird():
     """Verify recovery of mortality (mu) when missing from a 3-compartment SIR model."""
     true_system = SIRDSystem(beta=0.6, gamma=0.14, mu=0.04)
-    library = PolynomialLibrary(n_vars=4, degree=2, var_names=["S", "I", "R", "D"])
+    library = PolynomialLibrary(
+        n_vars=4, degree=2, var_names=["S", "I", "R", "D"]
+    )
     true_coeffs = true_system.coefficients(library)
 
     # Imperfect model: removal rate (gamma + mu) is lumped into the recovery (R) compartment
     imperfect_coeffs = np.zeros_like(true_coeffs)
     imperfect_coeffs[library.index("S I"), 0] = -true_system.beta
     imperfect_coeffs[library.index("S I"), 1] = true_system.beta
-    imperfect_coeffs[library.index("I"), 1] = -(true_system.gamma + true_system.mu)
-    imperfect_coeffs[library.index("I"), 2] = true_system.gamma + true_system.mu
+    imperfect_coeffs[library.index("I"), 1] = -(
+        true_system.gamma + true_system.mu
+    )
+    imperfect_coeffs[library.index("I"), 2] = (
+        true_system.gamma + true_system.mu
+    )
 
     run_medida_experiment(
         "Noise-free SIRD",
@@ -179,11 +188,15 @@ def example_seir_from_sir():
     sir_coeffs[library.index("S I"), 1] = 0.6
     sir_coeffs[library.index("I"), 1] = -0.18
     sir_coeffs[library.index("I"), 2] = 0.18
-    imperfect_model = PolynomialODE(sir_coeffs, library, state_names=["S", "I", "R"])
+    imperfect_model = PolynomialODE(
+        sir_coeffs, library, state_names=["S", "I", "R"]
+    )
 
     # Generate 4D SEIR data but only expose S, I, R for fitting
-    obs_prev_3d, obs_curr_3d, truth_prev_4d, truth_curr_4d = sample_hidden_E_seir_observations(
-        true_system, n_samples=1500, dt=0.05, sigma_obs=0.00
+    obs_prev_3d, obs_curr_3d, truth_prev_4d, truth_curr_4d = (
+        sample_hidden_E_seir_observations(
+            true_system, n_samples=1500, dt=0.05, sigma_obs=0.00
+        )
     )
 
     medida = MEDIDA(imperfect_model, library, dt=0.05, significance=1e-5)
@@ -196,9 +209,13 @@ def example_seir_from_sir():
 
     cor_coeffs = result.corrected_coefficients(sir_coeffs)
     cor_model = PolynomialODE(cor_coeffs, library, state_names=["S", "I", "R"])
-    cor_traj_3d = cor_model.trajectory(u0[[0, 2, 3]], 0.1, n_steps, substeps=16)
+    cor_traj_3d = cor_model.trajectory(
+        u0[[0, 2, 3]], 0.1, n_steps, substeps=16
+    )
 
-    imp_traj_3d = imperfect_model.trajectory(u0[[0, 2, 3]], 0.1, n_steps, substeps=16)
+    imp_traj_3d = imperfect_model.trajectory(
+        u0[[0, 2, 3]], 0.1, n_steps, substeps=16
+    )
 
     plt.figure(figsize=(10, 6))
     plt.plot(true_traj_4d[:, 2], "k-", lw=5, label="True SEIR (I)")
@@ -218,7 +235,12 @@ def example_seir_from_sir():
 
     plt.figure(figsize=(10, 6))
     plt.plot(true_exposed_outflow, "k-", lw=5, label="True E->I Outflow")
-    plt.plot(discovered_correction[:, 1], "g--", lw=4, label="Discovered dI correction")
+    plt.plot(
+        discovered_correction[:, 1],
+        "g--",
+        lw=4,
+        label="Discovered dI correction",
+    )
     plt.title("SEIR RECOVERY: Exposed Compartment Outflow")
     plt.legend()
     plt.grid(alpha=0.2)
@@ -235,42 +257,55 @@ def example_hidden_E():
 
     true_system = SEIRSystem(beta=0.6, sigma=0.2, gamma=0.18)
     library = PolynomialLibrary(n_vars=3, degree=2, var_names=["S", "I", "R"])
-    
+
     # Baseline SIR model
     sir_coeffs = np.zeros((library.n_features, 3))
     sir_coeffs[library.index("S I"), 0] = -0.6
     sir_coeffs[library.index("S I"), 1] = 0.6
     sir_coeffs[library.index("I"), 1] = -0.18
     sir_coeffs[library.index("I"), 2] = 0.18
-    imperfect_model = PolynomialODE(sir_coeffs, library, state_names=["S", "I", "R"])
+    imperfect_model = PolynomialODE(
+        sir_coeffs, library, state_names=["S", "I", "R"]
+    )
 
     # Generate 4D data, hide E, and add SIGNIFICANT noise
-    obs_prev, obs_curr, truth_prev_4d, truth_curr_4d = sample_hidden_E_seir_observations(
-        true_system, n_samples=2500, dt=0.05, sigma_obs=0.005, noise_seed=42
+    obs_prev, obs_curr, truth_prev_4d, truth_curr_4d = (
+        sample_hidden_E_seir_observations(
+            true_system,
+            n_samples=2500,
+            dt=0.05,
+            sigma_obs=0.005,
+            noise_seed=42,
+        )
     )
 
     # Use RidgeRVM to handle noise during hidden variable discovery
     rvm = RidgeRVM(ridge=1e-2)
-    medida = MEDIDA(imperfect_model, library, rvm=rvm, dt=0.05, significance=1e-3)
+    medida = MEDIDA(
+        imperfect_model, library, rvm=rvm, dt=0.05, significance=1e-3
+    )
     result = medida.fit(obs_prev, obs_curr)
-    
+
     # Generate diagnostic plots manually for the hidden variable case
     u0 = np.array([0.99, 0.005, 0.005, 0.0])
     n_steps = 400
     true_traj_4d = true_system.trajectory(u0, 0.1, n_steps, substeps=16)
-    
+
     cor_coeffs = result.corrected_coefficients(sir_coeffs)
     cor_model = PolynomialODE(cor_coeffs, library, state_names=["S", "I", "R"])
-    cor_traj_3d = cor_model.trajectory(u0[[0, 2, 3]], 0.1, n_steps, substeps=16)
+    cor_traj_3d = cor_model.trajectory(
+        u0[[0, 2, 3]], 0.1, n_steps, substeps=16
+    )
 
     plt.figure(figsize=(10, 6))
-    plt.plot(true_traj_4d[:, 2], 'k-', lw=5, label='True SEIR (I)')
-    plt.plot(cor_traj_3d[:, 1], 'g--', lw=4, label='MEDIDA (Noisy Recovery)')
+    plt.plot(true_traj_4d[:, 2], "k-", lw=5, label="True SEIR (I)")
+    plt.plot(cor_traj_3d[:, 1], "g--", lw=4, label="MEDIDA (Noisy Recovery)")
     plt.title("HIDDEN-E RECOVERY UNDER 0.5% NOISE")
-    plt.legend(); plt.grid(alpha=0.2); sns.despine()
+    plt.legend()
+    plt.grid(alpha=0.2)
+    sns.despine()
     plt.savefig(os.path.join(output_dir, "diagnostic_plot.png"))
     plt.close()
-
 
 
 def example_lorenz():
@@ -286,7 +321,9 @@ def example_lorenz():
     # Imperfect model is missing the 'x*z' cross-term in the second dimension
     c_imperfect = c_true.copy()
     c_imperfect[library.index("x z"), 1] = 0.0
-    imperfect_model = PolynomialODE(c_imperfect, library, state_names=["x", "y", "z"])
+    imperfect_model = PolynomialODE(
+        c_imperfect, library, state_names=["x", "y", "z"]
+    )
 
     # High-fidelity noise-free recovery
     obs_prev, obs_curr, _, _ = sample_observations(true_system, 1200, dt=1e-4)
@@ -324,14 +361,25 @@ def example_lorenz():
         lw=2,
         label="Ground truth (t=6)",
     )
-    ax.plot(c_traj[:, 0], c_traj[:, 1], c_traj[:, 2], "g--", lw=2.5, label="MEDIDA recovered (t=6)")
+    ax.plot(
+        c_traj[:, 0],
+        c_traj[:, 1],
+        c_traj[:, 2],
+        "g--",
+        lw=2.5,
+        label="MEDIDA recovered (t=6)",
+    )
     ax.set_xlabel("x", fontsize=12, labelpad=8)
     ax.set_ylabel("y", fontsize=12, labelpad=8)
     ax.set_zlabel("z", fontsize=12, labelpad=8)
     ax.set_title("LORENZ-63 ATTRACTOR RECOVERY", fontweight="black", pad=15)
     ax.legend(loc="upper left")
     plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, "attractor_3d.png"), dpi=300, bbox_inches="tight")
+    plt.savefig(
+        os.path.join(output_dir, "attractor_3d.png"),
+        dpi=300,
+        bbox_inches="tight",
+    )
     plt.close()
 
 
@@ -370,7 +418,9 @@ def example_lorenz_verification_summary():
     for label, mods in CASES:
         c_model = make_imperfect(mods)
         model = PolynomialODE(c_model, library)
-        obs_prev, obs_curr, _, _ = sample_observations(true_system, N_FREE, dt=DT_FREE)
+        obs_prev, obs_curr, _, _ = sample_observations(
+            true_system, N_FREE, dt=DT_FREE
+        )
         medida = MEDIDA(
             model,
             library,
@@ -382,14 +432,28 @@ def example_lorenz_verification_summary():
         c_star = result.corrected_coefficients(c_model)
         eps_m = coefficient_error(c_true, c_model)
         eps_star = coefficient_error(c_true, c_star)
-        free_results.append(dict(label=label, eps_m=eps_m, eps_star=eps_star))
-        print(f"  {label:28s}  eps_m={eps_m*100:.2f}%  eps*={eps_star*100:.4f}%")
+        free_results.append(
+            dict(
+                label=label,
+                eps_m=eps_m,
+                eps_star=eps_star,
+                c_model=c_model,
+                c_star=c_star,
+            )
+        )
+        print(
+            f"  {label:28s}  eps_m={eps_m*100:.2f}%  eps*={eps_star*100:.4f}%"
+        )
 
     # Step 3: Denoising benchmark with EnKF
     DT_NOISY, N_NOISY = 2e-3, 800
     NOISE_LEVEL, N_ENS, INFLATION = 0.01, 150, 1.05
-    probe_prev, probe_curr, _, _ = sample_observations(true_system, 1000, dt=1e-3)
-    sigma_u = float(np.mean(np.std(np.vstack([probe_prev, probe_curr]), axis=0)))
+    probe_prev, probe_curr, _, _ = sample_observations(
+        true_system, 1000, dt=1e-3
+    )
+    sigma_u = float(
+        np.mean(np.std(np.vstack([probe_prev, probe_curr]), axis=0))
+    )
     sigma_obs = NOISE_LEVEL * sigma_u
 
     noisy_results = []
@@ -398,17 +462,28 @@ def example_lorenz_verification_summary():
         c_model = make_imperfect(mods)
         model = PolynomialODE(c_model, library)
         obs_prev, obs_curr, _, _ = sample_observations(
-            true_system, N_NOISY, dt=DT_NOISY, sigma_obs=sigma_obs, noise_seed=7
+            true_system,
+            N_NOISY,
+            dt=DT_NOISY,
+            sigma_obs=sigma_obs,
+            noise_seed=7,
         )
 
         # Baseline: MEDIDA without Data Assimilation
-        med_nd = MEDIDA(model, library, dt=DT_NOISY, rvm=RelevanceVectorMachine(t_min=5.0))
+        med_nd = MEDIDA(
+            model, library, dt=DT_NOISY, rvm=RelevanceVectorMachine(t_min=5.0)
+        )
+        res_nd = med_nd.fit(obs_prev, obs_curr)
+        c_nd = res_nd.corrected_coefficients(c_model)
         eps_nd = coefficient_error(
-            c_true, med_nd.fit(obs_prev, obs_curr).corrected_coefficients(c_model)
+            c_true,
+            c_nd,
         )
 
         # Proposed: MEDIDA with EnKF preprocessing
-        enkf = EnsembleKalmanFilter(n_ensemble=N_ENS, inflation=INFLATION, seed=3)
+        enkf = EnsembleKalmanFilter(
+            n_ensemble=N_ENS, inflation=INFLATION, seed=3
+        )
         med_da = MEDIDA(
             model,
             library,
@@ -418,10 +493,25 @@ def example_lorenz_verification_summary():
             sigma_obs=sigma_obs,
         )
         res_da = med_da.fit(obs_prev, obs_curr)
-        eps_da = coefficient_error(c_true, res_da.corrected_coefficients(c_model))
+        c_da = res_da.corrected_coefficients(c_model)
+        eps_da = coefficient_error(
+            c_true, c_da
+        )
         eps_m = coefficient_error(c_true, c_model)
-        noisy_results.append(dict(label=label, eps_m=eps_m, eps_nd=eps_nd, eps_da=eps_da))
-        print(f"  {label:28s}  eps*_nd={eps_nd*100:.3f}%  eps*_da={eps_da*100:.3f}%")
+        noisy_results.append(
+            dict(
+                label=label,
+                eps_m=eps_m,
+                eps_nd=eps_nd,
+                eps_da=eps_da,
+                c_model=c_model,
+                c_nd=c_nd,
+                c_da=c_da,
+            )
+        )
+        print(
+            f"  {label:28s}  eps*_nd={eps_nd*100:.3f}%  eps*_da={eps_da*100:.3f}%"
+        )
 
     # Multi-panel summary visualization
     short = [r["label"][:22] for r in free_results]
@@ -452,7 +542,13 @@ def example_lorenz_verification_summary():
     a.axhline(2.0, ls="--", lw=1, color="grey")
 
     b = ax[0, 1]
-    b.bar(idx - 0.3, [r["eps_m"] * 100 for r in noisy_results], 0.3, label="ε_m", color="#bcbddc")
+    b.bar(
+        idx - 0.3,
+        [r["eps_m"] * 100 for r in noisy_results],
+        0.3,
+        label="ε_m",
+        color="#bcbddc",
+    )
     b.bar(
         idx,
         [r["eps_nd"] * 100 for r in noisy_results],
@@ -462,7 +558,11 @@ def example_lorenz_verification_summary():
         alpha=0.5,
     )
     b.bar(
-        idx + 0.3, [r["eps_da"] * 100 for r in noisy_results], 0.3, label="ε*_DA", color="#feb24c"
+        idx + 0.3,
+        [r["eps_da"] * 100 for r in noisy_results],
+        0.3,
+        label="ε*_DA",
+        color="#feb24c",
     )
     b.set_yscale("log")
     b.set_ylabel("Coefficient Error [%]", fontweight="bold")
@@ -471,6 +571,72 @@ def example_lorenz_verification_summary():
     b.set_title(f"(b) NOISY ({NOISE_LEVEL*100:.0f}%) — STEP 3 (EnKF)")
     b.legend(fontsize=9)
     b.axhline(2.0, ls="--", lw=1, color="grey")
+
+    c = ax[1, 0]
+    true_flat = np.tile(c_true.ravel(), len(free_results))
+    imperfect_flat = np.concatenate([r["c_model"].ravel() for r in free_results])
+    corrected_flat = np.concatenate([r["c_star"].ravel() for r in free_results])
+    lim = max(
+        np.max(np.abs(true_flat)),
+        np.max(np.abs(imperfect_flat)),
+        np.max(np.abs(corrected_flat)),
+    )
+    c.plot([-lim, lim], [-lim, lim], "k-", lw=1, alpha=0.4)
+    c.scatter(
+        true_flat,
+        imperfect_flat,
+        s=18,
+        alpha=0.35,
+        color="#bcbddc",
+        label="Imperfect",
+    )
+    c.scatter(
+        true_flat,
+        corrected_flat,
+        s=24,
+        alpha=0.65,
+        color="#2c7fb8",
+        label="Corrected",
+    )
+    c.set_xlim(-lim, lim)
+    c.set_ylim(-lim, lim)
+    c.set_xlabel("True coefficient")
+    c.set_ylabel("Estimated coefficient")
+    c.set_title("(c) COEFFICIENT RECOVERY — NOISE-FREE")
+    c.legend(fontsize=9)
+
+    d = ax[1, 1]
+    true_flat = np.tile(c_true.ravel(), len(noisy_results))
+    no_da_flat = np.concatenate([r["c_nd"].ravel() for r in noisy_results])
+    da_flat = np.concatenate([r["c_da"].ravel() for r in noisy_results])
+    lim = max(
+        np.max(np.abs(true_flat)),
+        np.max(np.abs(no_da_flat)),
+        np.max(np.abs(da_flat)),
+    )
+    d.plot([-lim, lim], [-lim, lim], "k-", lw=1, alpha=0.4)
+    d.scatter(
+        true_flat,
+        no_da_flat,
+        s=18,
+        alpha=0.35,
+        color="#f03b20",
+        label="No DA",
+    )
+    d.scatter(
+        true_flat,
+        da_flat,
+        s=24,
+        alpha=0.65,
+        color="#feb24c",
+        label="EnKF",
+    )
+    d.set_xlim(-lim, lim)
+    d.set_ylim(-lim, lim)
+    d.set_xlabel("True coefficient")
+    d.set_ylabel("Estimated coefficient")
+    d.set_title("(d) COEFFICIENT RECOVERY — NOISY")
+    d.legend(fontsize=9)
 
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, "verification_summary.png"), dpi=300)
@@ -494,7 +660,10 @@ def example_sir_verification_summary():
         ("wrong beta (0.4→0.6)", [("S I", 0, -0.4), ("S I", 1, 0.4)]),
         ("wrong gamma (0.10→0.18)", [("I", 1, -0.10), ("I", 2, 0.10)]),
         ("extra S decay", [("S", 0, -0.05)]),
-        ("wrong beta + miss dR", [("S I", 0, -0.4), ("S I", 1, 0.4), ("I", 2, 0.0)]),
+        (
+            "wrong beta + miss dR",
+            [("S I", 0, -0.4), ("S I", 1, 0.4), ("I", 2, 0.0)],
+        ),
     ]
 
     def make_imperfect(mods):
@@ -508,10 +677,14 @@ def example_sir_verification_summary():
     for label, mods in CASES:
         c_model = make_imperfect(mods)
         model = PolynomialODE(c_model, library)
-        obs_prev, obs_curr, _, _ = sample_simplex_observations(true_system, 500, dt=0.01)
+        obs_prev, obs_curr, _, _ = sample_simplex_observations(
+            true_system, 500, dt=0.01
+        )
         res = MEDIDA(model, library, dt=0.01).fit(obs_prev, obs_curr)
         eps_m = coefficient_error(c_true, c_model)
-        eps_star = coefficient_error(c_true, res.corrected_coefficients(c_model))
+        eps_star = coefficient_error(
+            c_true, res.corrected_coefficients(c_model)
+        )
         free_results.append(dict(label=label, eps_m=eps_m, eps_star=eps_star))
         print(f"  {label:28s}  {eps_m*100:5.2f}% → {eps_star*100:.4f}%")
 
@@ -525,9 +698,12 @@ def example_sir_verification_summary():
         )
 
         # no-DA
-        med_nd = MEDIDA(model, library, dt=0.05, rvm=RelevanceVectorMachine(t_min=4.0))
+        med_nd = MEDIDA(
+            model, library, dt=0.05, rvm=RelevanceVectorMachine(t_min=4.0)
+        )
         eps_nd = coefficient_error(
-            c_true, med_nd.fit(obs_prev, obs_curr).corrected_coefficients(c_model)
+            c_true,
+            med_nd.fit(obs_prev, obs_curr).corrected_coefficients(c_model),
         )
 
         # DA
@@ -541,10 +717,13 @@ def example_sir_verification_summary():
             rvm=RelevanceVectorMachine(t_min=4.0),
         )
         eps_da = coefficient_error(
-            c_true, med_da.fit(obs_prev, obs_curr).corrected_coefficients(c_model)
+            c_true,
+            med_da.fit(obs_prev, obs_curr).corrected_coefficients(c_model),
         )
         noisy_results.append(dict(label=label, eps_nd=eps_nd, eps_da=eps_da))
-        print(f"  {label:28s}  eps*_nd={eps_nd*100:.3f}%  eps*_da={eps_da*100:.3f}%")
+        print(
+            f"  {label:28s}  eps*_nd={eps_nd*100:.3f}%  eps*_da={eps_da*100:.3f}%"
+        )
 
 
 def example_ks():
@@ -602,8 +781,12 @@ def run_meta_analysis():
     os.makedirs(output_dir, exist_ok=True)
 
     def get_full_sweep(model_type):
-        bg, pg, em_f, es_f = run_parameter_sweep(model_type, grid_size=7, n_seeds=2, noise="free")
-        _, _, em_n, es_n = run_parameter_sweep(model_type, grid_size=7, n_seeds=2, noise="noisy")
+        bg, pg, em_f, es_f = run_parameter_sweep(
+            model_type, grid_size=7, n_seeds=2, noise="free"
+        )
+        _, _, em_n, es_n = run_parameter_sweep(
+            model_type, grid_size=7, n_seeds=2, noise="noisy"
+        )
         return bg, pg, em_f, es_f, em_n, es_n
 
     # Run sweeps for different model structural error types
@@ -614,9 +797,12 @@ def run_meta_analysis():
         ("Nonlinear (saturation)", *get_full_sweep("sat"), "BETA", "ALPHA"),
     ]
 
-    plot_meta_heatmaps(sweep_data, os.path.join(output_dir, "performance_heatmaps.png"))
-    plot_robustness_heatmaps(sweep_data, os.path.join(output_dir, "robustness_heatmaps.png"))
-
+    plot_meta_heatmaps(
+        sweep_data, os.path.join(output_dir, "performance_heatmaps.png")
+    )
+    plot_robustness_heatmaps(
+        sweep_data, os.path.join(output_dir, "robustness_heatmaps.png")
+    )
 
 
 if __name__ == "__main__":

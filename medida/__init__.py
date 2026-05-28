@@ -1,5 +1,10 @@
 from .integrators import euler_step, rk4_step, integrate
-from .libraries import FeatureLibrary, PolynomialLibrary, PDELibrary, SaturatedSIRLibrary
+from .libraries import (
+    FeatureLibrary,
+    PolynomialLibrary,
+    PDELibrary,
+    SaturatedSIRLibrary,
+)
 from .systems import (
     DynamicalSystem,
     PolynomialODE,
@@ -16,7 +21,12 @@ from .systems import (
 )
 from .regression import RelevanceVectorMachine, RidgeRVM
 from .assimilation import EnsembleKalmanFilter
-from .metrics import coefficient_error, relative_error, format_equation, format_system
+from .metrics import (
+    coefficient_error,
+    relative_error,
+    format_equation,
+    format_system,
+)
 from .framework import (
     MEDIDA,
     MedidaResult,

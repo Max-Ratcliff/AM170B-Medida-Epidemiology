@@ -21,7 +21,9 @@ def relative_error(reference, estimate):
     return float(np.linalg.norm(reference - estimate) / denom)
 
 
-def format_equation(coeffs, feature_names, var_name="du/dt", tol=1e-4, precision=4):
+def format_equation(
+    coeffs, feature_names, var_name="du/dt", tol=1e-4, precision=4
+):
     """Format a single ODE row as a string."""
     terms = []
     for i, c in enumerate(coeffs):
@@ -47,13 +49,19 @@ def format_equation(coeffs, feature_names, var_name="du/dt", tol=1e-4, precision
     return f"{var_name} = {res}"
 
 
-def format_system(coeffs, feature_names, state_names=None, tol=1e-4, precision=4):
+def format_system(
+    coeffs, feature_names, state_names=None, tol=1e-4, precision=4
+):
     """Format a full ODE system as a string."""
     coeffs = np.asarray(coeffs, dtype=float)
     if coeffs.ndim == 1:
         var_name = state_names[0] if state_names else "u"
         return format_equation(
-            coeffs, feature_names, var_name=f"d{var_name}/dt", tol=tol, precision=precision
+            coeffs,
+            feature_names,
+            var_name=f"d{var_name}/dt",
+            tol=tol,
+            precision=precision,
         )
 
     n_features, n_vars = coeffs.shape
@@ -95,7 +103,9 @@ def to_latex(name):
     return name
 
 
-def format_latex_system(coeffs, feature_names, state_names=None, tol=1e-4, precision=4):
+def format_latex_system(
+    coeffs, feature_names, state_names=None, tol=1e-4, precision=4
+):
     """Generate raw LaTeX text for the discovered system."""
     coeffs = np.asarray(coeffs, dtype=float)
     if state_names is None:
