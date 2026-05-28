@@ -14,7 +14,6 @@ import matplotlib  # noqa: E402
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
-# Ensure project root is in path for module imports
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
@@ -26,6 +25,8 @@ from medida import (  # noqa: E402
 )
 from scripts.covid_analysis import (  # noqa: E402
     COVID_DT,
+    COVID_END,
+    COVID_START,
     COVID_WINDOW,
     LOCKDOWN_COUNTRIES,
     load_and_process_country,
@@ -35,6 +36,15 @@ from scripts.utils import apply_publication_theme  # noqa: E402
 
 
 DEFAULT_TARGETS = ["Italy", "Sweden", "India"]
+
+# Extend targets to 2-year window to capture second-wave / Delta dynamics
+COVID_END_GLOBAL = "2021-12-31"
+
+COUNTRY_COLORS = {
+    "Italy": "#1f78b4",
+    "Sweden": "#e31a1c",
+    "India": "#ff7f00",
+}
 
 
 def estimate_country_beta(states, gamma):
@@ -98,8 +108,12 @@ def build_baseline_coeffs(lib, beta, gamma):
     return coeffs
 
 
-def evaluate_target_country(df_all, target, imp_coeffs, corrected_coeffs, lib):
-    states, N_pop = load_and_process_country(df_all, target)
+def evaluate_target_country(
+    df_all, target, imp_coeffs, corrected_coeffs, lib
+):
+    states, N_pop = load_and_process_country(
+        df_all, target, end=COVID_END_GLOBAL
+    )
     if states is None:
         return None
 
@@ -122,75 +136,54 @@ def evaluate_target_country(df_all, target, imp_coeffs, corrected_coeffs, lib):
         "pred_medida": pred_medida,
         "naive_rmse": rmse_naive,
         "medida_rmse": rmse_medida,
-        "improvement": rmse_naive / rmse_medida if rmse_medida > 0 else np.inf,
+        "improvement": (
+            rmse_naive / rmse_medida if rmse_medida > 0 else np.inf
+        ),
     }
 
 
-def evaluate_pooled_training_fit(
-    obs_prev, obs_curr, imp_coeffs, corrected_coeffs, lib
-):
-    """Evaluate the pooled global training set as one aggregated fit."""
-    pred_naive = obs_prev + COVID_DT * (lib.transform(obs_prev) @ imp_coeffs)
-    pred_medida = (
-        obs_prev + COVID_DT * (lib.transform(obs_prev) @ corrected_coeffs)
-    )
+# ---------------------------------------------------------------------------
+# Per-country: epidemic curve + residuals
+# ---------------------------------------------------------------------------
 
-    rmse_naive = float(
-        np.sqrt(np.mean((obs_curr[:, 1] - pred_naive[:, 1]) ** 2))
-    )
-    rmse_medida = float(
-        np.sqrt(np.mean((obs_curr[:, 1] - pred_medida[:, 1]) ** 2))
-    )
-
-    return {
-        "country": "Global",
-        "population": 1.0,
-        "states": obs_curr,
-        "pred_naive": pred_naive,
-        "pred_medida": pred_medida,
-        "naive_rmse": rmse_naive,
-        "medida_rmse": rmse_medida,
-        "improvement": rmse_naive / rmse_medida if rmse_medida > 0 else np.inf,
-    }
-
-
-def _plot_fit_error(result, output_path):
+def plot_country_fit(result, output_path):
+    """Side-by-side epidemic curve and one-step residuals for one country."""
     apply_publication_theme()
     states = result["states"]
     pred_naive = result["pred_naive"]
     pred_medida = result["pred_medida"]
     n_pop = float(result["population"])
+    country = result["country"]
+    color = COUNTRY_COLORS.get(country, "#33a02c")
 
-    t = np.arange(len(states))
-    is_global = result["country"] == "Global"
-    t_pred = t if is_global else np.arange(1, len(states))
+    t_obs = np.arange(len(states))
+    t_pred = np.arange(1, len(states))
     obs_I = states[:, 1] * n_pop
     naive_I = pred_naive[:, 1] * n_pop
     medida_I = pred_medida[:, 1] * n_pop
-    obs_next_I = obs_I if is_global else states[1:, 1] * n_pop
+    obs_next_I = states[1:, 1] * n_pop
 
     fig, axes = plt.subplots(1, 2, figsize=(18, 7))
+
     ax = axes[0]
-    ax.fill_between(t, obs_I, alpha=0.15, color="black", label="Observed")
-    ax.plot(t, obs_I, color="black", lw=2.4)
+    ax.fill_between(t_obs, obs_I, alpha=0.15, color="black", label="Observed")
+    ax.plot(t_obs, obs_I, color="black", lw=2.4)
     ax.plot(t_pred, naive_I, "r--", lw=2.0, label="Naive SIR")
-    ax.plot(t_pred, medida_I, color="#33a02c", lw=2.5, label="Global MEDIDA")
-    ax.set_title(
-        f"{result['country']} epidemic curve  ({result['improvement']:.2f}x)",
-        fontweight="black",
+    ax.plot(
+        t_pred, medida_I, color=color, lw=2.5, label="Global MEDIDA"
     )
-    ax.set_xlabel("Days since start")
-    ax.set_ylabel("Infectious fraction" if n_pop == 1.0 else "Infectious population")
-    if result["country"] in LOCKDOWN_COUNTRIES:
+    if country in LOCKDOWN_COUNTRIES:
         ax.axvline(
-            8,
-            color="#6a3d9a",
-            lw=1.8,
-            ls=":",
-            alpha=0.8,
+            8, color="#6a3d9a", lw=1.8, ls=":", alpha=0.8,
             label="Lockdown onset",
         )
-    ax.legend(loc="upper left")
+    ax.set_xlabel("Days since start")
+    ax.set_ylabel("Infectious population")
+    ax.set_title(
+        f"{country} epidemic curve  ({result['improvement']:.2f}x)",
+        fontweight="black",
+    )
+    ax.legend(loc="best", fontsize="small", frameon=True, framealpha=0.8)
 
     ax = axes[1]
     ax.axhline(0, color="black", lw=1, alpha=0.35)
@@ -204,150 +197,258 @@ def _plot_fit_error(result, output_path):
     ax.plot(
         t_pred,
         medida_I - obs_next_I,
-        color="#33a02c",
+        color=color,
         lw=2.5,
         label="MEDIDA residuals",
     )
-    ax.set_title(f"{result['country']} residuals", fontweight="black")
+    if country in LOCKDOWN_COUNTRIES:
+        ax.axvline(
+            8,
+            color="#6a3d9a",
+            lw=1.8,
+            ls=":",
+            alpha=0.8,
+            label="Lockdown onset",
+        )
     ax.set_xlabel("Days since start")
-    ax.set_ylabel(
-        "1-step residual (fraction)" if n_pop == 1.0 else "1-step residual (people)"
-    )
-    ax.legend(loc="upper left")
+    ax.set_ylabel("1-step residual (people)")
+    ax.set_title(f"{country} residuals", fontweight="black")
+    ax.legend(loc="best", fontsize="small", frameon=True, framealpha=0.8)
 
     fig.suptitle(
         "GLOBAL TRAINED MEDIDA TRANSFER",
-        fontsize=20,
+        fontsize=22,
         fontweight="black",
-        y=0.99,
+        y=0.98,
     )
-    plt.tight_layout(rect=[0, 0.01, 1, 0.97])
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     plt.savefig(output_path, dpi=200)
     plt.close()
 
 
-def plot_effective_beta(result, beta_global, corrected_coeffs, lib, output_path):
+# ---------------------------------------------------------------------------
+# Per-country: effective beta
+# ---------------------------------------------------------------------------
+
+def plot_country_effective_beta(
+    result, beta_global, corrected_coeffs, lib, output_path
+):
+    """Effective β(t) for a single target country."""
     apply_publication_theme()
     states = result["states"]
+    country = result["country"]
+    color = COUNTRY_COLORS.get(country, "#33a02c")
+
     op = states[:-1]
     Phi = lib.transform(op)
     dS_corr = (Phi @ corrected_coeffs)[:, 0]
     S = op[:, 0]
     I = op[:, 1]
     SI = np.clip(S * I, 1e-12, None)
-    beta_eff = np.clip(-dS_corr / SI, 0, None)
-    y_max = max(beta_global * 1.8, 0.05)
-    beta_eff = np.clip(beta_eff, 0, y_max)
+    y_max = max(beta_global * 2.0, 0.1)
+    beta_eff = np.clip(-dS_corr / SI, 0, y_max)
 
     t = np.arange(len(beta_eff))
     fig, ax = plt.subplots(figsize=(16, 4.8))
-    ax.plot(t, beta_eff, color="#33a02c", lw=2.6, label="Global MEDIDA β(t)")
+    ax.plot(t, beta_eff, color=color, lw=2.6, label="Global MEDIDA β(t)")
     ax.axhline(
-        beta_global,
-        color="#e31a1c",
-        lw=1.8,
-        ls="--",
-        alpha=0.8,
-        label="Global baseline β",
+        beta_global, color="#e31a1c", lw=1.8, ls="--", alpha=0.8,
+        label=f"Global baseline β = {beta_global:.3f}",
     )
-    if result["country"] in LOCKDOWN_COUNTRIES:
+    if country in LOCKDOWN_COUNTRIES:
         ax.axvline(
-            8,
-            color="#6a3d9a",
-            lw=1.8,
-            ls=":",
-            alpha=0.8,
+            8, color="#6a3d9a", lw=1.8, ls=":", alpha=0.8,
             label="Lockdown onset",
         )
     ax.set_ylim(0, y_max)
     ax.set_xlabel("Days since start")
     ax.set_ylabel("Effective β(t)")
     ax.set_title(
-        f"{result['country']} effective transmission  ({result['improvement']:.2f}x)",
+        f"{country} effective transmission  ({result['improvement']:.2f}x)",
         fontweight="black",
     )
     ax.legend(loc="upper right")
-
     fig.suptitle(
         "GLOBAL TRAINED MEDIDA EFFECTIVE TRANSMISSION",
-        fontsize=20,
-        fontweight="black",
-        y=0.98,
+        fontsize=20, fontweight="black", y=0.98,
     )
     plt.tight_layout(rect=[0, 0.01, 1, 0.96])
     plt.savefig(output_path, dpi=200)
     plt.close()
 
 
-def plot_global_training_curve(global_result, output_path):
-    """Plot the pooled global training fit as a single aggregated series."""
-    apply_publication_theme()
-    states = global_result["states"]
-    pred_naive = global_result["pred_naive"]
-    pred_medida = global_result["pred_medida"]
+# ---------------------------------------------------------------------------
+# Global epidemic curve (calendar-date aligned sum across training countries)
+# ---------------------------------------------------------------------------
 
-    t = np.arange(len(states))
-    t_pred = np.arange(1, len(states))
-    obs_I = states[:, 1]
-    naive_I = pred_naive[:, 1]
-    medida_I = pred_medida[:, 1]
-    obs_next_I = states[1:, 1]
+def build_global_aggregate(df_all, targets, imp_coeffs, corrected_coeffs, lib):
+    """Sum I(t)*N_pop across all training countries aligned to calendar dates."""
+    dates = pd.date_range(start=COVID_START, end=COVID_END, freq="D")
+    n_days = len(dates)
+    global_obs = np.zeros(n_days)
+    global_naive = np.zeros(n_days)
+    global_medida = np.zeros(n_days)
+    gamma = 1.0 / COVID_WINDOW
+
+    for country in sorted(df_all["location"].dropna().unique()):
+        if country in targets:
+            continue
+        states, N_pop = load_and_process_country(df_all, country)
+        if states is None or len(states) < 30:
+            continue
+        beta = estimate_country_beta(states, gamma)
+        if beta is None or not np.isfinite(beta):
+            continue
+
+        n = len(states)
+        limit = min(n, n_days)
+        Phi = lib.transform(states[: limit - 1])
+        pred_naive = states[: limit - 1] + COVID_DT * (Phi @ imp_coeffs)
+        pred_medida = states[: limit - 1] + COVID_DT * (Phi @ corrected_coeffs)
+
+        global_obs[:limit] += states[:limit, 1] * N_pop
+        global_naive[1:limit] += pred_naive[: limit - 1, 1] * N_pop
+        global_medida[1:limit] += pred_medida[: limit - 1, 1] * N_pop
+
+    return dates, global_obs, global_naive, global_medida
+
+
+def plot_global_fit_error(
+    df_all, targets, imp_coeffs, corrected_coeffs, lib, output_path
+):
+    """Global aggregate epidemic curve + residuals, styled to match per-country fit_error."""
+    apply_publication_theme()
+    dates, obs, naive, medida = build_global_aggregate(
+        df_all, targets, imp_coeffs, corrected_coeffs, lib
+    )
+
+    obs_M = obs / 1e6
+    naive_M = naive / 1e6
+    medida_M = medida / 1e6
+    naive_res = naive_M[1:] - obs_M[1:]
+    medida_res = medida_M[1:] - obs_M[1:]
+    n = len(obs_M)
+    t = np.arange(n)
 
     fig, axes = plt.subplots(1, 2, figsize=(18, 7))
+
+    # Left: epidemic curve
     ax = axes[0]
-    ax.fill_between(t, obs_I, alpha=0.15, color="black", label="Observed")
-    ax.plot(t, obs_I, color="black", lw=2.4)
-    ax.plot(t_pred, naive_I, "r--", lw=2.0, label="Naive SIR")
-    ax.plot(t_pred, medida_I, color="#33a02c", lw=2.5, label="Global MEDIDA")
+    ax.fill_between(t, obs_M, alpha=0.15, color="black", label="Observed")
+    ax.plot(t, obs_M, color="black", lw=2.4)
+    ax.plot(t[1:], naive_M[1:], "r--", lw=2.0, label="Naive SIR")
+    ax.plot(t[1:], medida_M[1:], color="#33a02c", lw=2.5,
+            label="Global MEDIDA")
+    ax.set_xlabel("Days since start (2020-03-01)")
+    ax.set_ylabel("Infectious population (millions)")
     ax.set_title(
-        f"Global pooled fit  ({global_result['improvement']:.2f}x)",
+        "Global aggregate epidemic curve  (60 training countries)",
         fontweight="black",
     )
-    ax.set_xlabel("Pooled sample index")
-    ax.set_ylabel("Infectious fraction")
-    ax.legend(loc="upper left")
+    ax.legend(loc="upper left", fontsize="small", frameon=True, framealpha=0.8)
 
+    # Right: residuals
     ax = axes[1]
     ax.axhline(0, color="black", lw=1, alpha=0.35)
-    ax.plot(
-        t_pred,
-        naive_I - obs_next_I,
-        "r--",
-        lw=2.0,
-        label="Naive residuals",
-    )
-    ax.plot(
-        t_pred,
-        medida_I - obs_next_I,
-        color="#33a02c",
-        lw=2.5,
-        label="MEDIDA residuals",
-    )
-    ax.set_title("Global pooled residuals", fontweight="black")
-    ax.set_xlabel("Pooled sample index")
-    ax.set_ylabel("1-step residual (fraction)")
-    ax.legend(loc="upper left")
+    ax.plot(t[1:], naive_res, "r--", lw=2.0, label="Naive residuals")
+    ax.plot(t[1:], medida_res, color="#33a02c", lw=2.5,
+            label="MEDIDA residuals")
+    ax.set_xlabel("Days since start (2020-03-01)")
+    ax.set_ylabel("1-step residual (millions)")
+    ax.set_title("Global aggregate residuals", fontweight="black")
+    ax.legend(loc="upper left", fontsize="small", frameon=True, framealpha=0.8)
 
     fig.suptitle(
-        "GLOBAL TRAINED MEDIDA: POOLED FIT AND ERROR",
-        fontsize=20,
-        fontweight="black",
-        y=0.98,
+        "GLOBAL TRAINED MEDIDA TRANSFER",
+        fontsize=22, fontweight="black", y=0.98,
     )
-    plt.tight_layout(rect=[0, 0.01, 1, 0.96])
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     plt.savefig(output_path, dpi=200)
     plt.close()
 
+
+# ---------------------------------------------------------------------------
+# Global summary: 3-panel β(t) comparison (replaces concatenated beta)
+# ---------------------------------------------------------------------------
+
+def plot_global_beta_comparison(
+    target_rows, beta_global, corrected_coeffs, lib, output_path
+):
+    """Three-panel effective β(t) — one panel per target country."""
+    apply_publication_theme()
+
+    n = len(target_rows)
+    fig, axes = plt.subplots(1, n, figsize=(7 * n, 5), sharey=False)
+    if n == 1:
+        axes = [axes]
+
+    for ax, result in zip(axes, target_rows):
+        country = result["country"]
+        color = COUNTRY_COLORS.get(country, "#33a02c")
+        states = result["states"]
+        op = states[:-1]
+        Phi = lib.transform(op)
+        dS_corr = (Phi @ corrected_coeffs)[:, 0]
+        S, I = op[:, 0], op[:, 1]
+        SI = np.clip(S * I, 1e-12, None)
+        # Hard-cap at a physical ceiling (10× global baseline) before
+        # computing per-panel ylim — prevents division blowup when I≈0
+        physical_cap = max(beta_global * 10, 2.0)
+        beta_raw = np.clip(-dS_corr / SI, 0, physical_cap)
+        y_max = float(np.percentile(beta_raw, 99)) * 1.25
+        y_max = max(y_max, beta_global * 1.5, 0.1)
+        beta_eff = np.clip(beta_raw, 0, y_max)
+
+        t = np.arange(len(beta_eff))
+        ax.plot(t, beta_eff, color=color, lw=2.4, label="β(t)")
+        ax.axhline(
+            beta_global, color="#e31a1c", lw=1.6, ls="--", alpha=0.75,
+            label=f"Baseline β = {beta_global:.3f}",
+        )
+        if country in LOCKDOWN_COUNTRIES:
+            ax.axvline(
+                8, color="#6a3d9a", lw=1.6, ls=":", alpha=0.8,
+                label="Lockdown onset",
+            )
+        ax.set_ylim(0, y_max)
+        ax.set_xlabel("Days since start")
+        ax.set_title(
+            f"{country}  ({result['improvement']:.2f}×)",
+            fontweight="black",
+        )
+        ax.legend(fontsize=10)
+
+    axes[0].set_ylabel("Effective β(t)")
+    fig.suptitle(
+        "GLOBAL TRAINED MEDIDA: EFFECTIVE TRANSMISSION BY COUNTRY",
+        fontsize=18, fontweight="black", y=1.01,
+    )
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=200, bbox_inches="tight")
+    plt.close()
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Train a global MEDIDA correction and test it on a few countries."
+        description=(
+            "Train a global MEDIDA correction on all non-target countries "
+            "and evaluate transfer to held-out targets."
+        )
     )
     parser.add_argument(
         "--targets",
         nargs="+",
         default=DEFAULT_TARGETS,
         help="Countries to evaluate the global-trained correction on.",
+    )
+    parser.add_argument(
+        "--sweep",
+        action="store_true",
+        help="Run evaluation across all ~200 countries for global statistics.",
     )
     parser.add_argument(
         "--output-dir",
@@ -367,67 +468,85 @@ def main():
         if os.path.isabs(args.output_dir)
         else os.path.join(project_root, args.output_dir)
     )
+
+    import shutil
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
     os.makedirs(output_dir, exist_ok=True)
-    apply_publication_theme()
 
     gamma = 1.0 / COVID_WINDOW
     lib = PolynomialLibrary(n_vars=3, degree=2, var_names=["S", "I", "R"])
 
+    print("Building global pooled training set...")
     obs_prev, obs_curr, beta_global, used_countries, skipped = (
         build_global_training_set(df_all, set(args.targets))
     )
+    print(
+        f"  Training on {len(used_countries)} countries "
+        f"({len(skipped)} skipped), global β̄ = {beta_global:.4f}"
+    )
+
     imp_coeffs = build_baseline_coeffs(lib, beta_global, gamma)
 
+    print("Running MEDIDA fit on pooled data...")
     medida = MEDIDA(
         PolynomialODE(imp_coeffs, lib),
         lib,
         dt=COVID_DT,
         significance=1e-8,
     )
-    result = medida.fit(obs_prev, obs_curr)
-    corrected_coeffs = result.corrected_coefficients(imp_coeffs)
+    fit_result = medida.fit(obs_prev, obs_curr)
+    corrected_coeffs = fit_result.corrected_coefficients(imp_coeffs)
 
-    global_result = evaluate_pooled_training_fit(
-        obs_prev, obs_curr, imp_coeffs, corrected_coeffs, lib
-    )
-
+    print(f"Evaluating accuracy gains (window: 2020-03-01 → {COVID_END_GLOBAL})...")
     target_rows = []
-    for target in args.targets:
+    eval_list = sorted(df_all["location"].unique()) if args.sweep else args.targets
+
+    for target in eval_list:
         row = evaluate_target_country(
             df_all, target, imp_coeffs, corrected_coeffs, lib
         )
         if row is not None:
             target_rows.append(row)
+            if target in args.targets:
+                print(
+                    f"  {target}: {row['improvement']:.2f}× improvement  "
+                    f"(naive RMSE {row['naive_rmse']:.5f}, "
+                    f"MEDIDA RMSE {row['medida_rmse']:.5f})"
+                )
 
-    results_df = pd.DataFrame(target_rows)
     csv_path = os.path.join(output_dir, "global_transfer_summary.csv")
-    results_df.to_csv(csv_path, index=False)
+    pd.DataFrame(target_rows).drop(
+        columns=["states", "pred_naive", "pred_medida"], errors="ignore"
+    ).to_csv(csv_path, index=False)
 
-    fit_specs = [global_result] + [row for _, row in results_df.iterrows()]
-    for spec in fit_specs:
-        country = spec["country"].lower().replace(" ", "_")
-        plot_path = os.path.join(output_dir, f"{country}_fit_error.png")
-        beta_path = os.path.join(output_dir, f"{country}_effective_beta.png")
-        _plot_fit_error(spec, plot_path)
-        plot_effective_beta(spec, beta_global, corrected_coeffs, lib, beta_path)
+    # Separate target rows from full sweep rows for plotting
+    target_plot_rows = [r for r in target_rows if r["country"] in args.targets]
 
-    print(f"Global beta estimate: {beta_global:.4f}")
-    print(f"Training countries used: {len(used_countries)}")
-    print(f"Skipped countries: {len(skipped)}")
-    print("\nTarget-country transfer:")
-    print(
-        results_df[
-            ["country", "naive_rmse", "medida_rmse", "improvement"]
-        ].to_string(index=False)
+    # --- Global summary figures ---
+    print("Plotting global summary figures...")
+    plot_global_fit_error(
+        df_all, set(args.targets), imp_coeffs, corrected_coeffs, lib,
+        os.path.join(output_dir, "global_fit_error.png"),
     )
-    print(f"\nWrote {csv_path}")
-    print(f"Wrote {os.path.join(output_dir, 'global_fit_error.png')}")
-    for target in args.targets:
-        country = target.lower().replace(" ", "_")
-        print(f"Wrote {os.path.join(output_dir, f'{country}_fit_error.png')}")
-        print(
-            f"Wrote {os.path.join(output_dir, f'{country}_effective_beta.png')}"
+    plot_global_beta_comparison(
+        target_plot_rows, beta_global, corrected_coeffs, lib,
+        os.path.join(output_dir, "global_beta_comparison.png"),
+    )
+
+    # --- Per-country fit + beta figures (targets only) ---
+    print("Plotting per-country figures...")
+    for row in target_plot_rows:
+        slug = row["country"].lower().replace(" ", "_")
+        plot_country_fit(row, os.path.join(output_dir, f"{slug}_fit_error.png"))
+        plot_country_effective_beta(
+            row, beta_global, corrected_coeffs, lib,
+            os.path.join(output_dir, f"{slug}_effective_beta.png"),
         )
+
+    print(f"\nOutputs written to {output_dir}/")
+    for fname in sorted(os.listdir(output_dir)):
+        print(f"  {fname}")
 
 
 if __name__ == "__main__":
