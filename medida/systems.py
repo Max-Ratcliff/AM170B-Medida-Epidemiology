@@ -19,13 +19,34 @@ class DynamicalSystem(ABC):
         return self.rhs(u)
 
     def step(self, u, dt, method="rk4", substeps=1):
-        """Advance the system state by a time interval dt."""
+        """Advance the system state by a time interval dt.
+
+        Args:
+            u (array-like): Current state of the system.
+            dt (float): Time interval to advance.
+            method (str): Numerical integration method ('rk4' or 'euler').
+            substeps (int): Number of internal integration steps per dt.
+
+        Returns:
+            np.ndarray: The advanced state.
+        """
         return integrate(self.rhs, u, dt, 1, method=method, substeps=substeps)[
             -1
         ]
 
     def trajectory(self, u0, dt, n_steps, method="rk4", substeps=1):
-        """Integrate the system from u0 and return the full trajectory."""
+        """Integrate the system from u0 and return the full trajectory.
+
+        Args:
+            u0 (array-like): Initial state of the system.
+            dt (float): Time interval between returned trajectory points.
+            n_steps (int): Number of time steps to integrate.
+            method (str): Numerical integration method ('rk4' or 'euler').
+            substeps (int): Number of internal integration steps per dt.
+
+        Returns:
+            np.ndarray: Trajectory of shape (n_steps + 1, ...).
+        """
         u = np.asarray(u0, dtype=float)
         out = np.empty((n_steps + 1,) + u.shape, dtype=float)
         out[0] = u
@@ -39,6 +60,15 @@ class DynamicalSystem(ABC):
 
         Uses a Monte Carlo approach to probe the system dynamics and solve
         a least-squares problem to map the RHS onto library features.
+
+        Args:
+            library (FeatureLibrary): The library to project the RHS onto.
+            n_probe (int): Number of random states used to probe the system.
+            probe_scale (float): Standard deviation of the probing states.
+            seed (int): Random seed for generating probing states.
+
+        Returns:
+            np.ndarray: The coefficient matrix of shape (n_features, dim).
         """
         rng = np.random.default_rng(seed)
         U = rng.standard_normal((n_probe, self.dim)) * probe_scale

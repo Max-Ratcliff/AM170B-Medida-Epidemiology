@@ -1,6 +1,11 @@
 import sys
 import os
+import tempfile
 import numpy as np
+
+os.environ.setdefault(
+    "MPLCONFIGDIR", os.path.join(tempfile.gettempdir(), "medida_mplconfig")
+)
 import matplotlib
 
 matplotlib.use("Agg")

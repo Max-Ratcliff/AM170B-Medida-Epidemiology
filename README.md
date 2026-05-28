@@ -92,6 +92,12 @@ Manual download location:
 https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/owid-covid-data.csv
 ```
 
+To set up the data directory without running an analysis:
+
+```bash
+python scripts/covid_analysis.py --download-data
+```
+
 ### Command-Line Flags
 
 `scripts/covid_analysis.py`:
@@ -100,6 +106,8 @@ https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/owid-cov
 |---|---:|---|
 | `--train-country "Country Name"` | `Italy` | Country used to learn the SIR model-error correction from historical OWID data. Use the exact OWID `location` name, such as `"South Africa"` or `Germany`. |
 | `--sweep` | off | After learning the correction from the training country, evaluate one-step error improvement across all available OWID countries and save global maps/rankings. |
+| `--download-data` | off | Create `data/`, download/cache the OWID CSV if needed, print the cache path, and exit before running analysis. |
+| `--refresh-data` | off | Force a fresh OWID CSV download before continuing. Can be combined with `--download-data` to only refresh the cache. |
 
 `scripts/verification.py` currently has no command-line flags. Running it
 executes the full synthetic verification suite.

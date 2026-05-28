@@ -1,6 +1,11 @@
 import sys
 import os
+import tempfile
 import numpy as np
+
+os.environ.setdefault(
+    "MPLCONFIGDIR", os.path.join(tempfile.gettempdir(), "medida_mplconfig")
+)
 import matplotlib
 
 matplotlib.use("Agg")
@@ -494,9 +499,7 @@ def example_lorenz_verification_summary():
         )
         res_da = med_da.fit(obs_prev, obs_curr)
         c_da = res_da.corrected_coefficients(c_model)
-        eps_da = coefficient_error(
-            c_true, c_da
-        )
+        eps_da = coefficient_error(c_true, c_da)
         eps_m = coefficient_error(c_true, c_model)
         noisy_results.append(
             dict(
@@ -574,8 +577,12 @@ def example_lorenz_verification_summary():
 
     c = ax[1, 0]
     true_flat = np.tile(c_true.ravel(), len(free_results))
-    imperfect_flat = np.concatenate([r["c_model"].ravel() for r in free_results])
-    corrected_flat = np.concatenate([r["c_star"].ravel() for r in free_results])
+    imperfect_flat = np.concatenate(
+        [r["c_model"].ravel() for r in free_results]
+    )
+    corrected_flat = np.concatenate(
+        [r["c_star"].ravel() for r in free_results]
+    )
     lim = max(
         np.max(np.abs(true_flat)),
         np.max(np.abs(imperfect_flat)),

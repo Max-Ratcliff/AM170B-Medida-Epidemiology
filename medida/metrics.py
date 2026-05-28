@@ -2,7 +2,15 @@ import numpy as np
 
 
 def coefficient_error(true_coeffs, estimated_coeffs):
-    """Normalised coefficient distance || c_s - c_other || / || c_s || (Eq. 16)."""
+    """Normalised coefficient distance || c_s - c_other || / || c_s || (Eq. 16).
+
+    Args:
+        true_coeffs (array-like): The ground truth coefficient matrix.
+        estimated_coeffs (array-like): The discovered/estimated coefficients.
+
+    Returns:
+        float: The normalised error (0.0 means perfect recovery).
+    """
     true_coeffs = np.asarray(true_coeffs, dtype=float)
     estimated_coeffs = np.asarray(estimated_coeffs, dtype=float)
     denom = np.linalg.norm(true_coeffs)
@@ -12,7 +20,15 @@ def coefficient_error(true_coeffs, estimated_coeffs):
 
 
 def relative_error(reference, estimate):
-    """Generic relative L2 error || reference - estimate || / || reference ||."""
+    """Generic relative L2 error || reference - estimate || / || reference ||.
+
+    Args:
+        reference (array-like): The baseline/true values.
+        estimate (array-like): The estimated/predicted values.
+
+    Returns:
+        float: The relative error.
+    """
     reference = np.asarray(reference, dtype=float)
     estimate = np.asarray(estimate, dtype=float)
     denom = np.linalg.norm(reference)

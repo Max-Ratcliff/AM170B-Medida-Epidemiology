@@ -16,7 +16,14 @@ class FeatureLibrary(ABC):
         pass
 
     def index(self, name):
-        """Find the index of a feature by its human-readable name."""
+        """Find the index of a feature by its human-readable name.
+
+        Args:
+            name (str): The name of the feature (e.g., 'S I').
+
+        Returns:
+            int: The index of the feature in the library matrix.
+        """
         return self.feature_names.index(name)
 
 
@@ -66,7 +73,15 @@ class PolynomialLibrary(FeatureLibrary):
         return " ".join(parts)
 
     def transform(self, states):
-        """Transform input states into the polynomial feature matrix."""
+        """Transform input states into the polynomial feature matrix.
+
+        Args:
+            states (array-like): Input observations of shape (n_samples, n_vars)
+                or (n_vars,).
+
+        Returns:
+            np.ndarray: Feature matrix of shape (n_samples, n_features).
+        """
         U = np.atleast_2d(np.asarray(states, dtype=float))
         n = U.shape[0]
         Phi = np.empty((n, self.n_features), dtype=float)
@@ -129,7 +144,15 @@ class PDELibrary(FeatureLibrary):
         return np.real(np.fft.ifft(fhat, axis=-1))
 
     def transform(self, states):
-        """Build the PDE feature library matrix."""
+        """Build the PDE feature library matrix.
+
+        Args:
+            states (array-like): Input spatial fields of shape
+                (n_samples, n_grid) or (n_grid,).
+
+        Returns:
+            np.ndarray: Feature matrix of shape (n_samples * n_grid, n_features).
+        """
         U = np.atleast_2d(np.asarray(states, dtype=float))
         cols = []
         for term in self.terms:
@@ -156,7 +179,15 @@ class SaturatedSIRLibrary(FeatureLibrary):
         self.n_features = len(self.feature_names)
 
     def transform(self, states):
-        """Map S, I, R states into the saturated incidence feature space."""
+        """Map S, I, R states into the saturated incidence feature space.
+
+        Args:
+            states (array-like): Input S-I-R states of shape (n_samples, 3)
+                or (3,).
+
+        Returns:
+            np.ndarray: Feature matrix of shape (n_samples, n_features).
+        """
         states = np.asarray(states, dtype=float)
         if states.ndim == 1:
             states = states[None, :]

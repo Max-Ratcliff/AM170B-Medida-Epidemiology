@@ -235,7 +235,20 @@ def sample_observations(
 def sample_simplex_observations(
     system, n_samples, dt, seed=0, sigma_obs=0.0, noise_seed=1, alpha=None
 ):
-    """Generate states on a probability simplex, typically for epidemiological systems."""
+    """Generate states on a probability simplex, typically for epidemiological systems.
+
+    Args:
+        system (DynamicalSystem): The true system to sample from.
+        n_samples (int): Number of states to sample.
+        dt (float): Time interval between observations in a pair.
+        seed (int): Random seed for Dirichlet sampling.
+        sigma_obs (float): Standard deviation of Gaussian observation noise.
+        noise_seed (int): Random seed for the observation noise.
+        alpha (array-like, optional): Dirichlet concentration parameters.
+
+    Returns:
+        tuple: (obs_prev, obs_curr, truth_prev, truth_curr) as numpy arrays.
+    """
     rng = np.random.default_rng(seed)
     if alpha is None:
         dim = getattr(system, "dim", 3)
@@ -274,7 +287,21 @@ def sample_ks_observations(
     sigma_obs=0.0,
     noise_seed=1,
 ):
-    """Generate Kuramoto-Sivashinsky observation pairs using spectral integration."""
+    """Generate Kuramoto-Sivashinsky observation pairs using spectral integration.
+
+    Args:
+        system (KSSystem): The true KS system instance.
+        n_samples (int): Number of observation pairs to generate.
+        dt (float): Time interval between observations in a pair.
+        spinup_time (float): Time to evolve from random ICs to a chaotic state.
+        spin_dt (float): Time step used for integration.
+        seed (int): Random seed for initial conditions.
+        sigma_obs (float): Standard deviation of Gaussian observation noise.
+        noise_seed (int): Random seed for the observation noise.
+
+    Returns:
+        tuple: (obs_prev, obs_curr, truth_prev, truth_curr) as numpy arrays.
+    """
     rng = np.random.default_rng(seed)
     # Spectral space initialization
     v0 = rng.standard_normal(system.N) + 1j * rng.standard_normal(system.N)
@@ -314,7 +341,20 @@ def sample_ks_observations(
 def sample_hidden_E_seir_observations(
     system, n_samples, dt, seed=0, sigma_obs=0.0, noise_seed=1
 ):
-    """Generate SEIR trajectories and discard the latent 'Exposed' compartment."""
+    """Generate SEIR trajectories and discard the latent 'Exposed' compartment.
+
+    Args:
+        system (DynamicalSystem): The true SEIR system.
+        n_samples (int): Number of observation pairs to generate.
+        dt (float): Time interval between observations in a pair.
+        seed (int): Random seed for Dirichlet sampling.
+        sigma_obs (float): Standard deviation of Gaussian observation noise.
+        noise_seed (int): Random seed for the observation noise.
+
+    Returns:
+        tuple: (obs_prev_3d, obs_curr_3d, truth_prev_4d, truth_curr_4d).
+            The 'obs' arrays are 3D (S, I, R), while 'truth' arrays are 4D (S, E, I, R).
+    """
     rng = np.random.default_rng(seed)
     truth_prev_4d = rng.dirichlet(
         alpha=np.array([3.0, 0.8, 0.8, 2.0]), size=n_samples

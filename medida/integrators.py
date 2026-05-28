@@ -2,12 +2,30 @@ import numpy as np
 
 
 def euler_step(rhs, u, dt):
-    """Advance the state by dt using the explicit forward Euler scheme."""
+    """Advance the state by dt using the explicit forward Euler scheme.
+
+    Args:
+        rhs (callable): Function evaluating the system tendencies du/dt.
+        u (array-like): Current state of the system.
+        dt (float): Time step size.
+
+    Returns:
+        np.ndarray: The advanced state.
+    """
     return u + dt * rhs(u)
 
 
 def rk4_step(rhs, u, dt):
-    """Advance the state by dt using the 4th-order Runge-Kutta scheme."""
+    """Advance the state by dt using the 4th-order Runge-Kutta scheme.
+
+    Args:
+        rhs (callable): Function evaluating the system tendencies du/dt.
+        u (array-like): Current state of the system.
+        dt (float): Time step size.
+
+    Returns:
+        np.ndarray: The advanced state.
+    """
     k1 = rhs(u)
     k2 = rhs(u + 0.5 * dt * k1)
     k3 = rhs(u + 0.5 * dt * k2)

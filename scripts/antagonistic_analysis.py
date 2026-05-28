@@ -1,10 +1,15 @@
+import os
+import tempfile
 import pandas as pd
 import numpy as np
+
+os.environ.setdefault(
+    "MPLCONFIGDIR", os.path.join(tempfile.gettempdir(), "medida_mplconfig")
+)
 import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import os
 
 # Ensure project root is in path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

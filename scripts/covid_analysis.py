@@ -1,7 +1,12 @@
 import sys
 import os
+import tempfile
 import pandas as pd
 import numpy as np
+
+os.environ.setdefault(
+    "MPLCONFIGDIR", os.path.join(tempfile.gettempdir(), "medida_mplconfig")
+)
 import matplotlib
 
 matplotlib.use("Agg")
@@ -87,7 +92,18 @@ LOCKDOWN_COUNTRIES = {
 def load_and_process_country(
     df_all, country, start=COVID_START, end=COVID_END
 ):
-    """Filter OWID data and compute S-I-R compartment trajectories for a specific country."""
+    """Filter OWID data and compute S-I-R compartment trajectories for a country.
+
+    Args:
+        df_all (pd.DataFrame): The full OWID dataset.
+        country (str): Name of the country to process.
+        start (str): Start date for filtering.
+        end (str): End date for filtering.
+
+    Returns:
+        tuple: (states, N_pop) where states is an (n_days, 3) numpy array
+            containing (S, I, R) fractions, and N_pop is the population size.
+    """
     df = (
         df_all.query("location == @country")
         .assign(date=lambda d: pd.to_datetime(d["date"]))
@@ -591,6 +607,21 @@ def plot_failure_grid(
     plt.close()
 
 
+def load_owid_data(force_download=False):
+    """Load the cached OWID COVID data, downloading it when needed."""
+    data_dir = os.path.join(project_root, "data")
+    local_path = os.path.join(data_dir, "owid-covid-data.csv")
+    os.makedirs(data_dir, exist_ok=True)
+
+    if force_download or not os.path.exists(local_path):
+        print(f"Downloading OWID COVID data to {local_path}")
+        df_all = pd.read_csv(COVID_URL)
+        df_all.to_csv(local_path, index=False)
+        return df_all
+
+    return pd.read_csv(local_path)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="MEDIDA COVID-19 Model Discovery and Validation"
@@ -606,22 +637,28 @@ def main():
         action="store_true",
         help="Execute global accuracy gain sweep across all countries",
     )
+    parser.add_argument(
+        "--download-data",
+        action="store_true",
+        help="Download/cache the OWID COVID CSV and exit without analysis",
+    )
+    parser.add_argument(
+        "--refresh-data",
+        action="store_true",
+        help="Force re-download of the OWID COVID CSV before continuing",
+    )
     args = parser.parse_args()
+
+    df_all = load_owid_data(force_download=args.refresh_data)
+    if args.download_data:
+        print("OWID COVID data is ready in data/owid-covid-data.csv")
+        return
 
     output_dir = (
         f"outputs/covid/{args.train_country.lower().replace(' ', '_')}"
     )
     os.makedirs(output_dir, exist_ok=True)
     apply_publication_theme()
-
-    data_dir = os.path.join(project_root, "data")
-    local_path = os.path.join(data_dir, "owid-covid-data.csv")
-    if os.path.exists(local_path):
-        df_all = pd.read_csv(local_path)
-    else:
-        os.makedirs(data_dir, exist_ok=True)
-        df_all = pd.read_csv(COVID_URL)
-        df_all.to_csv(local_path, index=False)
 
     states_train, N_pop_train = load_and_process_country(
         df_all, args.train_country

@@ -28,7 +28,15 @@ class RelevanceVectorMachine:
         self.debias = bool(debias)
 
     def fit(self, Phi, y):
-        """Estimate sparse coefficients for the model y ~ Phi @ c."""
+        """Estimate sparse coefficients for the model y ~ Phi @ c.
+
+        Args:
+            Phi (array-like): Feature matrix of shape (n_samples, n_features).
+            y (array-like): Target tendencies of shape (n_samples,).
+
+        Returns:
+            self: The fitted RVM instance.
+        """
         Phi = np.asarray(Phi, dtype=float)
         y = np.asarray(y, dtype=float).ravel()
         n_samples, n_features = Phi.shape
