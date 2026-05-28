@@ -10,7 +10,7 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from scripts.utils import apply_publication_theme
+from scripts.utils import apply_publication_theme  # noqa: E402
 
 SWEEP_CSV = os.path.join(
     project_root, "outputs", "covid", "italy", "sweep_results.csv"
@@ -21,15 +21,16 @@ def load_sweep_results():
     if not os.path.exists(SWEEP_CSV):
         raise FileNotFoundError(
             f"Sweep results not found at {SWEEP_CSV}.\n"
-            "Run: python scripts/covid_analysis.py --train-country Italy --sweep"
+            "Run: python scripts/covid_analysis.py "
+            "--train-country Italy --sweep"
         )
     df = pd.read_csv(SWEEP_CSV)
-    # Drop territories with essentially no data (both models predict ~0, ratio is undefined)
+    # Drop territories with too little data for a defined improvement ratio.
     return df[df["improvement"] > 0.05].copy()
 
 
 def plot_ablation_summary(results_df, output_path):
-    """Top-10 / bottom-10 bar chart with lockdown vs non-lockdown color coding."""
+    """Top-10 / bottom-10 bar chart colored by lockdown status."""
     apply_publication_theme()
 
     top10 = results_df.nlargest(10, "improvement")
@@ -99,8 +100,11 @@ def plot_ablation_summary(results_df, output_path):
     ax.legend(handles=leg, loc="lower right", fontsize=13)
 
     ax.set_title(
-        f"MEDIDA GLOBAL TRANSFER: {n_improve}/{n_countries} COUNTRIES IMPROVE  (Trained on Italy)\n"
-        f"Lockdown countries: {med_lock:.1f}× median  |  Non-lockdown: {med_nolock:.1f}× median",
+        "MEDIDA GLOBAL TRANSFER: "
+        f"{n_improve}/{n_countries} COUNTRIES IMPROVE  "
+        "(Trained on Italy)\n"
+        f"Lockdown countries: {med_lock:.1f}x median  |  "
+        f"Non-lockdown: {med_nolock:.1f}x median",
         fontsize=16,
         fontweight="black",
         pad=12,

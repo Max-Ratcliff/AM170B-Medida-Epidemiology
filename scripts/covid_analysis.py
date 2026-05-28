@@ -1,41 +1,39 @@
 import sys
 import os
 import tempfile
+import argparse
 import pandas as pd
 import numpy as np
 
 os.environ.setdefault(
     "MPLCONFIGDIR", os.path.join(tempfile.gettempdir(), "medida_mplconfig")
 )
-import matplotlib
+import matplotlib  # noqa: E402
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import seaborn as sns
-import argparse
-from matplotlib.patches import Patch
+import matplotlib.pyplot as plt  # noqa: E402
+import seaborn as sns  # noqa: E402
 
 # Ensure project root is in path for module imports
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from scripts.utils import (
-    save_latex_correction,
+from scripts.utils import (  # noqa: E402
     apply_publication_theme,
     save_discovery_card,
 )
-from medida import (
+from medida import (  # noqa: E402
     MEDIDA,
     PolynomialODE,
     PolynomialLibrary,
-    RelevanceVectorMachine,
-    format_system,
-    relative_error,
 )
 
 # Configuration for COVID-19 data processing
-COVID_URL = "https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/owid-covid-data.csv"
+COVID_URL = (
+    "https://raw.githubusercontent.com/owid/covid-19-data/master/public/"
+    "data/owid-covid-data.csv"
+)
 COVID_START = "2020-03-01"
 COVID_END = "2021-01-15"
 COVID_MULTIPLIER = 4  # Factor to estimate total infections from reported cases
@@ -92,7 +90,7 @@ LOCKDOWN_COUNTRIES = {
 def load_and_process_country(
     df_all, country, start=COVID_START, end=COVID_END
 ):
-    """Filter OWID data and compute S-I-R compartment trajectories for a country.
+    """Filter OWID data and compute S-I-R trajectories for a country.
 
     Args:
         df_all (pd.DataFrame): The full OWID dataset.
@@ -141,7 +139,7 @@ def load_and_process_country(
 
 
 def plot_coefficients_bar(coeffs, feature_names, output_path):
-    """Generate horizontal bar charts of discovered model-error correction terms."""
+    """Generate bar charts of discovered model-error correction terms."""
     apply_publication_theme()
     fig, axes = plt.subplots(1, 3, figsize=(18, 7))
 
@@ -166,7 +164,7 @@ def plot_coefficients_bar(coeffs, feature_names, output_path):
             ylabs = [feature_names[j] for j, m in enumerate(mask) if m]
             ylabs = [ylabs[k] for k in sorted_idx]
 
-            # Use diverging palette to distinguish positive and negative contributions
+            # Use a diverging palette for positive and negative terms.
             palette = sns.color_palette("vlag", n_colors=len(vals))
             ax.barh(ylabs, vals, color=palette, edgecolor="white", height=0.6)
             ax.axvline(0, color="black", lw=1, alpha=0.4)
@@ -181,7 +179,7 @@ def plot_coefficients_bar(coeffs, feature_names, output_path):
 
 
 def plot_country_comparison(country_results, output_path):
-    """3×3 grid comparing discovered correction terms across Italy, Sweden, Germany."""
+    """Compare discovered correction terms across selected countries."""
     apply_publication_theme()
     countries = [cr["country"] for cr in country_results]
     fig, axes = plt.subplots(
@@ -195,7 +193,7 @@ def plot_country_comparison(country_results, output_path):
         feature_names = cr["feature_names"]
         beta = cr["beta"]
         n_terms = int(np.sum(np.abs(coeffs) > 1e-4))
-        # Scale x-axis to each country's own range so small corrections are readable
+        # Scale x-axis per country so small corrections are readable.
         row_max = max(np.max(np.abs(coeffs)), 1e-3)
 
         for col, label in enumerate(labels):
@@ -248,7 +246,7 @@ def plot_country_comparison(country_results, output_path):
 
 
 def plot_landscape_ranking(df, title, filename, train_country):
-    """Visualize accuracy improvements across a set of countries as a ranked bar chart."""
+    """Visualize accuracy improvements as a ranked bar chart."""
     apply_publication_theme()
     df = df.copy().reset_index(drop=True)
     fig, axes = plt.subplots(1, 2, figsize=(20, 10), sharex=True)
@@ -261,7 +259,7 @@ def plot_landscape_ranking(df, title, filename, train_country):
         sub_df = df.iloc[start_idx:end_idx].copy().sort_values("improvement")
         y_pos = np.arange(len(sub_df))
 
-        # Color-code based on whether the country implemented a national lockdown
+        # Color-code by national lockdown status.
         colors = [
             success_color if lock else fail_color
             for lock in sub_df["lockdown"]
@@ -299,7 +297,7 @@ def plot_landscape_ranking(df, title, filename, train_country):
 
 
 def plot_global_choropleth(results_df, train_country, output_path):
-    """Generate a global choropleth map showing model-error reduction by geography."""
+    """Generate a global choropleth map of model-error reduction."""
     import plotly.express as px
 
     # Map country names to Plotly-compatible ISO conventions
@@ -313,7 +311,7 @@ def plot_global_choropleth(results_df, train_country, output_path):
     plot_df = results_df.copy()
     plot_df["country_plot"] = plot_df["country"].replace(NAME_FIXES)
 
-    # Cap improvement factor for map visualization to prevent outliers from saturating the scale
+    # Cap improvement factors so outliers do not saturate the scale.
     cap = plot_df["improvement"].quantile(0.95)
     plot_df["improvement_capped"] = plot_df["improvement"].clip(upper=cap)
 
@@ -354,14 +352,14 @@ def plot_effective_beta(
     apply_publication_theme()
     op = states[:-1]
     Phi = lib.transform(op)
-    S, I = op[:, 0], op[:, 1]
+    S, infected = op[:, 0], op[:, 1]
 
     # Derive effective beta: beta(t) = - (dS/dt) / (S * I)
     dS_corr = (Phi @ train_coeffs)[:, 0]
-    SI = np.clip(S * I, 1e-12, None)
+    SI = np.clip(S * infected, 1e-12, None)
     beta_eff_corr = -dS_corr / SI
 
-    # Cap y-axis at a fraction of naive β so the variation in β(t) fills the plot.
+    # Cap y-axis so variation in beta(t) fills the plot.
     y_cap = beta_est * 0.35
 
     fig, ax = plt.subplots(figsize=(14, 6))
@@ -382,7 +380,7 @@ def plot_effective_beta(
             label="Lockdown onset (Day 8)",
         )
 
-    # Naive β is above the visible range — draw it as a clipped line + annotation
+    # Naive beta is above range; draw it as a clipped line + annotation.
     ax.axhline(y_cap, color="#e31a1c", lw=1.5, ls="--", alpha=0.4)
     ax.annotate(
         f"Naive SIR: β = {beta_est:.3f} (constant, above scale)",
@@ -410,7 +408,7 @@ def plot_effective_beta(
 def plot_epidemic_residuals(
     states, N_pop, imp_coeffs, train_coeffs, lib, output_path
 ):
-    """Compare population-level forecasts and residuals between baseline and MEDIDA."""
+    """Compare population-level forecasts and residuals."""
     apply_publication_theme()
     op = states[:-1]
     oc = states[1:]
@@ -475,7 +473,7 @@ def plot_transfer_country(
     transfer_country,
     output_path,
 ):
-    """One-step accuracy transfer test: apply correction learned from one country to another."""
+    """Apply a learned correction to another country's data."""
     apply_publication_theme()
     states, N_pop = load_and_process_country(df_all, transfer_country)
     if states is None:
@@ -550,7 +548,7 @@ def plot_transfer_country(
 def plot_failure_grid(
     df_all, results_df, train_coeffs, imp_coeffs, lib, output_path
 ):
-    """Visualize trajectories for countries where the correction failed to improve accuracy."""
+    """Visualize countries where the correction failed to improve accuracy."""
     apply_publication_theme()
     failures = results_df[results_df["improvement"] < 0.95].nsmallest(
         6, "improvement"
@@ -566,7 +564,6 @@ def plot_failure_grid(
             continue
 
         op = states[:-1]
-        oc = states[1:]
         Phi = lib.transform(op)
         p_m = op + COVID_DT * (Phi @ imp_coeffs)
         p_s = op + COVID_DT * (Phi @ train_coeffs)
@@ -728,22 +725,22 @@ def main():
         os.path.join(output_dir, "epidemic_curve_residuals.png"),
     )
 
-    # Temporal holdout: train on days 0-199, then FREE ROLLOUT from day 200 (no observations)
+    # Temporal holdout: train on days 0-199, then roll out from day 200.
     if len(states_train) > 250:
         res_h = medida.fit(states_train[:199], states_train[1:200])
         c_h = res_h.corrected_coefficients(imp_coeffs)
 
         n_forecast = len(states_train) - 200
-        # Multi-step rollout: integrate corrected and naive models forward from day 200
+        # Multi-step rollout from day 200 for corrected and naive models.
         rollout_medida = np.zeros((n_forecast + 1, 3))
         rollout_naive = np.zeros((n_forecast + 1, 3))
         rollout_medida[0] = rollout_naive[0] = states_train[200]
         for step in range(n_forecast):
-            Phi_s = lib.transform(rollout_medida[step : step + 1])
+            Phi_s = lib.transform(rollout_medida[step][None, :])
             rollout_medida[step + 1] = np.clip(
                 rollout_medida[step] + COVID_DT * (Phi_s @ c_h), 0, 1
             )
-            Phi_n = lib.transform(rollout_naive[step : step + 1])
+            Phi_n = lib.transform(rollout_naive[step][None, :])
             rollout_naive[step + 1] = np.clip(
                 rollout_naive[step] + COVID_DT * (Phi_n @ imp_coeffs), 0, 1
             )
@@ -795,7 +792,8 @@ def main():
             )
 
         ax.set_title(
-            f"{args.train_country.upper()} TEMPORAL HOLDOUT: FREE ROLLOUT FROM DAY 200",
+            f"{args.train_country.upper()} TEMPORAL HOLDOUT: "
+            "FREE ROLLOUT FROM DAY 200",
             fontweight="black",
         )
         ax.set_xlabel("DAYS SINCE START")
@@ -815,11 +813,11 @@ def main():
             lib,
             args.train_country,
             "France",
-            os.path.join(output_dir, f"transfer_france.png"),
+            os.path.join(output_dir, "transfer_france.png"),
         )
 
     if args.train_country == "Italy":
-        # 3-country comparison: how lockdown policy shapes the discovered correction
+        # Compare how policy context shapes the discovered correction.
         country_comp = [
             {
                 "country": "Italy",
@@ -876,7 +874,7 @@ def main():
                         "lockdown": country in LOCKDOWN_COUNTRIES,
                     }
                 )
-            except:
+            except Exception:
                 continue
 
         results_df = pd.DataFrame(results).sort_values(

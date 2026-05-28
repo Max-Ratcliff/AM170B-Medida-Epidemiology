@@ -1,4 +1,3 @@
-import sys
 import os
 import tempfile
 import numpy as np
@@ -6,12 +5,12 @@ import numpy as np
 os.environ.setdefault(
     "MPLCONFIGDIR", os.path.join(tempfile.gettempdir(), "medida_mplconfig")
 )
-import matplotlib
+import matplotlib  # noqa: E402
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import seaborn as sns
-from medida import (
+import matplotlib.pyplot as plt  # noqa: E402
+import seaborn as sns  # noqa: E402
+from medida import (  # noqa: E402
     sample_simplex_observations,
     MEDIDA,
     PolynomialODE,
@@ -19,7 +18,7 @@ from medida import (
     relative_error,
     format_system,
 )
-from medida.metrics import format_latex_system
+from medida.metrics import format_latex_system  # noqa: E402
 
 
 def apply_publication_theme():
@@ -144,7 +143,7 @@ def run_medida_experiment(
     output_dir="outputs/synthetic/misc",
     generate_card=False,
 ):
-    """Execute a single MEDIDA discovery experiment and save diagnostic results.
+    """Execute a MEDIDA discovery experiment and save diagnostics.
 
     Includes data generation, fitting, metric calculation, and visualization.
     """
@@ -442,7 +441,7 @@ def plot_meta_heatmaps(sweep_data, output_path):
 
 
 def plot_robustness_heatmaps(sweep_data, output_path):
-    """Generate heatmaps showing the coefficient of variation (CV) across random seeds."""
+    """Generate coefficient-of-variation heatmaps across random seeds."""
     apply_publication_theme()
     fig, axes = plt.subplots(2, 4, figsize=(24, 11))
 

@@ -2,7 +2,7 @@ import numpy as np
 
 
 class RelevanceVectorMachine:
-    """Sparse Bayesian linear regression using the Relevance Vector Machine (RVM).
+    """Sparse Bayesian linear regression using RVM.
 
     Identifies a sparse set of library features that best explain the target
     vector. Includes support for significance pruning via t-statistics and
@@ -92,7 +92,7 @@ class RelevanceVectorMachine:
 
         support = active.copy()
 
-        # Significance pruning: backward elimination of terms with low t-statistics
+        # Backward-eliminate terms with low t-statistics.
         if self.t_min > 0.0 and support.size > 0:
             support = self._t_eliminate(Phi_n, y, support, self.t_min)
 
@@ -201,7 +201,7 @@ class RidgeRVM(RelevanceVectorMachine):
         self.ridge = float(ridge)
 
     def _ols_with_tstat(self, design, y):
-        """Execute ridge-regularized OLS and compute corresponding t-statistics."""
+        """Execute ridge-regularized OLS and compute t-statistics."""
         design = np.asarray(design, dtype=float)
         n, k = design.shape
         gram = design.T @ design

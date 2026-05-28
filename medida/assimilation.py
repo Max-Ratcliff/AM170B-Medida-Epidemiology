@@ -15,7 +15,7 @@ class EnsembleKalmanFilter:
         self.seed = seed
 
     def analysis(self, model, obs_prev, obs_curr, sigma_obs, dt):
-        """Perform EnKF analysis to estimate the true state at the current time.
+        """Perform EnKF analysis to estimate the true state.
 
         This implementation is vectorized across n_samples observation pairs.
         """
@@ -31,7 +31,7 @@ class EnsembleKalmanFilter:
         )
 
         # Perform a one-step forecast with the imperfect model
-        # The ensemble is flattened to (n*N, dim) to be compatible with library transforms
+        # Flatten the ensemble to (n*N, dim) for library transforms.
         ic_flat = ic.reshape(n_samples * N_ens, dim)
         fc = np.asarray(model.step(ic_flat, dt), dtype=float).reshape(
             n_samples, N_ens, dim

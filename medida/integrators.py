@@ -57,7 +57,8 @@ def integrate(rhs, u0, dt, n_steps, method="rk4", substeps=1):
     """
     if method not in INTEGRATORS:
         raise KeyError(
-            f"Unsupported integrator '{method}'; choose from {list(INTEGRATORS)}"
+            f"Unsupported integrator '{method}'; "
+            f"choose from {list(INTEGRATORS)}"
         )
 
     step_func = INTEGRATORS[method]

@@ -6,28 +6,25 @@ import numpy as np
 os.environ.setdefault(
     "MPLCONFIGDIR", os.path.join(tempfile.gettempdir(), "medida_mplconfig")
 )
-import matplotlib
+import matplotlib  # noqa: E402
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import seaborn as sns
-from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as plt  # noqa: E402
+import seaborn as sns  # noqa: E402
 
 # Ensure project root is in path for module imports
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from scripts.utils import (
+from scripts.utils import (  # noqa: E402
     run_medida_experiment,
-    save_discovery_card,
-    save_latex_correction,
     apply_publication_theme,
     run_parameter_sweep,
     plot_meta_heatmaps,
     plot_robustness_heatmaps,
 )
-from medida import (
+from medida import (  # noqa: E402
     SIRSystem,
     SIRSSystem,
     SIRDSystem,
@@ -35,7 +32,6 @@ from medida import (
     Lorenz63,
     KSSystem,
     SEIRSystem,
-    ProjectedSIRFromSEIRSystem,
     PolynomialLibrary,
     SaturatedSIRLibrary,
     PDELibrary,
@@ -44,10 +40,8 @@ from medida import (
     MEDIDA,
     RidgeRVM,
     EnsembleKalmanFilter,
-    format_system,
     sample_ks_observations,
     coefficient_error,
-    relative_error,
     sample_hidden_E_seir_observations,
     sample_observations,
     sample_simplex_observations,
@@ -55,7 +49,7 @@ from medida import (
 
 
 def example_sir_vs_sirs():
-    """Verify MEDIDA's ability to recover waning immunity (xi) from a standard SIR model."""
+    """Verify recovery of waning immunity from a standard SIR model."""
     true_system = SIRSSystem(beta=0.6, gamma=0.18, xi=0.08)
     library = PolynomialLibrary(n_vars=3, degree=2, var_names=["S", "I", "R"])
     true_coeffs = true_system.coefficients(library)
@@ -97,14 +91,14 @@ def example_sir_vs_sirs():
 
 
 def example_sird():
-    """Verify recovery of mortality (mu) when missing from a 3-compartment SIR model."""
+    """Verify mortality recovery from a 3-compartment SIR model."""
     true_system = SIRDSystem(beta=0.6, gamma=0.14, mu=0.04)
     library = PolynomialLibrary(
         n_vars=4, degree=2, var_names=["S", "I", "R", "D"]
     )
     true_coeffs = true_system.coefficients(library)
 
-    # Imperfect model: removal rate (gamma + mu) is lumped into the recovery (R) compartment
+    # Imperfect model lumps removal rate (gamma + mu) into recovery.
     imperfect_coeffs = np.zeros_like(true_coeffs)
     imperfect_coeffs[library.index("S I"), 0] = -true_system.beta
     imperfect_coeffs[library.index("S I"), 1] = true_system.beta
@@ -151,7 +145,7 @@ def example_sird():
 
 
 def example_nonlinear_sir():
-    """Verify recovery of saturated incidence (Holling Type II) using a custom library."""
+    """Verify saturated-incidence recovery using a custom library."""
     true_system = SIRNonlinearSystem(beta=0.6, gamma=0.18, a=8.0)
     library = SaturatedSIRLibrary(a=true_system.a)
     true_coeffs = true_system.coefficients(library)
@@ -179,7 +173,7 @@ def example_nonlinear_sir():
 
 
 def example_seir_from_sir():
-    """Demonstrate recovery of unobserved 'Exposed' dynamics from SIR-only data."""
+    """Recover unobserved exposed dynamics from SIR-only data."""
     output_dir = "outputs/synthetic/seir_from_sir"
     os.makedirs(output_dir, exist_ok=True)
     apply_publication_theme()
@@ -198,10 +192,8 @@ def example_seir_from_sir():
     )
 
     # Generate 4D SEIR data but only expose S, I, R for fitting
-    obs_prev_3d, obs_curr_3d, truth_prev_4d, truth_curr_4d = (
-        sample_hidden_E_seir_observations(
-            true_system, n_samples=1500, dt=0.05, sigma_obs=0.00
-        )
+    obs_prev_3d, obs_curr_3d, _, _ = sample_hidden_E_seir_observations(
+        true_system, n_samples=1500, dt=0.05, sigma_obs=0.00
     )
 
     medida = MEDIDA(imperfect_model, library, dt=0.05, significance=1e-5)
@@ -255,7 +247,7 @@ def example_seir_from_sir():
 
 
 def example_hidden_E():
-    """Analyze impact of high observation noise on hidden compartment recovery."""
+    """Analyze high-noise impact on hidden-compartment recovery."""
     output_dir = "outputs/synthetic/hidden_e"
     os.makedirs(output_dir, exist_ok=True)
     apply_publication_theme()
@@ -274,14 +266,12 @@ def example_hidden_E():
     )
 
     # Generate 4D data, hide E, and add SIGNIFICANT noise
-    obs_prev, obs_curr, truth_prev_4d, truth_curr_4d = (
-        sample_hidden_E_seir_observations(
-            true_system,
-            n_samples=2500,
-            dt=0.05,
-            sigma_obs=0.005,
-            noise_seed=42,
-        )
+    obs_prev, obs_curr, _, _ = sample_hidden_E_seir_observations(
+        true_system,
+        n_samples=2500,
+        dt=0.05,
+        sigma_obs=0.005,
+        noise_seed=42,
     )
 
     # Use RidgeRVM to handle noise during hidden variable discovery
@@ -341,7 +331,7 @@ def example_lorenz():
     u0 = np.array([-8.0, 7.0, 27.0])
     # Full attractor for background reference
     t_traj_full = true_system.trajectory(u0, 0.01, 3000, substeps=8)
-    # Short trajectory (within Lyapunov time ~5) so true and recovered overlap visibly
+    # Short trajectory so true and recovered overlap visibly.
     n_short = 600
     t_traj = true_system.trajectory(u0, 0.01, n_short, substeps=8)
     c_traj = cor_model.trajectory(u0, 0.01, n_short, substeps=8)
@@ -398,7 +388,7 @@ def example_lorenz_verification_summary():
     library = PolynomialLibrary(n_vars=3, degree=2, var_names=["x", "y", "z"])
     c_true = true_system.coefficients(library)
 
-    # Dictionary of test cases: (label, list of (feature_name, dimension, new_value))
+    # Test cases: (label, list of (feature_name, dimension, new_value)).
     CASES = [
         ("missing x z", [("x z", 1, 0.0)]),
         ("missing x y", [("x y", 2, 0.0)]),
@@ -513,13 +503,14 @@ def example_lorenz_verification_summary():
             )
         )
         print(
-            f"  {label:28s}  eps*_nd={eps_nd*100:.3f}%  eps*_da={eps_da*100:.3f}%"
+            f"  {label:28s}  eps*_nd={eps_nd*100:.3f}%  "
+            f"eps*_da={eps_da*100:.3f}%"
         )
 
     # Multi-panel summary visualization
     short = [r["label"][:22] for r in free_results]
     idx = np.arange(len(CASES))
-    fig, ax = plt.subplots(2, 2, figsize=(18, 14))
+    _, ax = plt.subplots(2, 2, figsize=(18, 14))
 
     a = ax[0, 0]
     a.bar(
@@ -651,7 +642,7 @@ def example_lorenz_verification_summary():
 
 
 def example_sir_verification_summary():
-    """Benchmark discovery of structural SIR errors (missing compartment, wrong rate)."""
+    """Benchmark discovery of structural SIR errors."""
     output_dir = "outputs/synthetic/sir"
     os.makedirs(output_dir, exist_ok=True)
     apply_publication_theme()
@@ -729,12 +720,13 @@ def example_sir_verification_summary():
         )
         noisy_results.append(dict(label=label, eps_nd=eps_nd, eps_da=eps_da))
         print(
-            f"  {label:28s}  eps*_nd={eps_nd*100:.3f}%  eps*_da={eps_da*100:.3f}%"
+            f"  {label:28s}  eps*_nd={eps_nd*100:.3f}%  "
+            f"eps*_da={eps_da*100:.3f}%"
         )
 
 
 def example_ks():
-    """Verify recovery of the Kuramoto-Sivashinsky PDE using spectral integration."""
+    """Verify recovery of the Kuramoto-Sivashinsky PDE."""
     output_dir = "outputs/synthetic/ks_pde"
     os.makedirs(output_dir, exist_ok=True)
     apply_publication_theme()
@@ -763,16 +755,16 @@ def example_ks():
     i_traj = imperfect_model.trajectory(u0, 0.1, n_steps)
     c_traj = cor_model.trajectory(u0, 0.1, n_steps)
 
-    fig, axes = plt.subplots(1, 3, figsize=(18, 6), sharey=True)
+    _, axes = plt.subplots(1, 3, figsize=(18, 6), sharey=True)
     extent = [0, 22, 20, 0]
-    im0 = axes[0].imshow(t_traj, extent=extent, cmap="inferno", aspect="auto")
+    axes[0].imshow(t_traj, extent=extent, cmap="inferno", aspect="auto")
     axes[0].set_title("GROUND TRUTH")
     axes[0].set_ylabel("TIME")
 
-    im1 = axes[1].imshow(i_traj, extent=extent, cmap="inferno", aspect="auto")
+    axes[1].imshow(i_traj, extent=extent, cmap="inferno", aspect="auto")
     axes[1].set_title("IMPERFECT (NO ADVECTION)")
 
-    im2 = axes[2].imshow(c_traj, extent=extent, cmap="inferno", aspect="auto")
+    axes[2].imshow(c_traj, extent=extent, cmap="inferno", aspect="auto")
     axes[2].set_title("MEDIDA RECONSTRUCTION")
 
     for ax in axes:

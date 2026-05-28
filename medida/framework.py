@@ -37,7 +37,8 @@ class MEDIDA:
     """Framework for Model Error Discovery with Iterative Data Assimilation.
 
     Implements the 3-step algorithm to identify missing or incorrect terms in
-    dynamical systems by regressing forecast residuals against a feature library.
+    dynamical systems by regressing forecast residuals against a feature
+    library.
     """
 
     def __init__(
@@ -69,7 +70,8 @@ class MEDIDA:
         """Compute the discrepancy between model forecasts and data.
 
         If an Ensemble Kalman Filter (EnKF) is provided, the discrepancy is
-        calculated relative to the analysis state to mitigate observation noise.
+        calculated relative to the analysis state to mitigate observation
+        noise.
         """
         obs_prev = np.atleast_2d(np.asarray(obs_prev, dtype=float))
         obs_curr = np.atleast_2d(np.asarray(obs_curr, dtype=float))
@@ -235,7 +237,7 @@ def sample_observations(
 def sample_simplex_observations(
     system, n_samples, dt, seed=0, sigma_obs=0.0, noise_seed=1, alpha=None
 ):
-    """Generate states on a probability simplex, typically for epidemiological systems.
+    """Generate states on a probability simplex.
 
     Args:
         system (DynamicalSystem): The true system to sample from.
@@ -287,7 +289,7 @@ def sample_ks_observations(
     sigma_obs=0.0,
     noise_seed=1,
 ):
-    """Generate Kuramoto-Sivashinsky observation pairs using spectral integration.
+    """Generate Kuramoto-Sivashinsky observation pairs.
 
     Args:
         system (KSSystem): The true KS system instance.
@@ -353,7 +355,8 @@ def sample_hidden_E_seir_observations(
 
     Returns:
         tuple: (obs_prev_3d, obs_curr_3d, truth_prev_4d, truth_curr_4d).
-            The 'obs' arrays are 3D (S, I, R), while 'truth' arrays are 4D (S, E, I, R).
+            The 'obs' arrays are 3D (S, I, R), while 'truth' arrays are 4D
+            (S, E, I, R).
     """
     rng = np.random.default_rng(seed)
     truth_prev_4d = rng.dirichlet(

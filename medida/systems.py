@@ -105,7 +105,7 @@ class PolynomialODE(DynamicalSystem):
         phi = self.library.transform(u_in)
         res = phi @ self.coefficients
 
-        # If it's a scalar PDE, reshape the flattened grid points back to the input shape
+        # Scalar PDE libraries flatten grid points; restore the input shape.
         if getattr(self.library, "kind", None) == "scalar_pde":
             return res.reshape(u_in.shape)
 
@@ -160,7 +160,6 @@ class PolynomialODE(DynamicalSystem):
 
     def _etdrk4_step(self, u, dt):
         """Perform one ETDRK4 step for stiff 1-D scalar PDE systems."""
-        lib = self.library
         E, E2, Q, f1, f2, f3, Llin = self._get_etdrk4_coeffs(dt)
 
         def Nfun(vhat):
@@ -303,10 +302,10 @@ class SIRSystem(DynamicalSystem):
 
     def rhs(self, u):
         u = np.asarray(u, dtype=float)
-        S, I, R = u[..., 0], u[..., 1], u[..., 2]
-        dS = -self.beta * S * I
-        dI = self.beta * S * I - self.gamma * I
-        dR = self.gamma * I
+        S, infected = u[..., 0], u[..., 1]
+        dS = -self.beta * S * infected
+        dI = self.beta * S * infected - self.gamma * infected
+        dR = self.gamma * infected
         return np.stack([dS, dI, dR], axis=-1)
 
 
@@ -323,10 +322,10 @@ class SIRSSystem(DynamicalSystem):
 
     def rhs(self, u):
         u = np.asarray(u, dtype=float)
-        S, I, R = u[..., 0], u[..., 1], u[..., 2]
-        dS = -self.beta * S * I + self.xi * R
-        dI = self.beta * S * I - self.gamma * I
-        dR = self.gamma * I - self.xi * R
+        S, infected, R = u[..., 0], u[..., 1], u[..., 2]
+        dS = -self.beta * S * infected + self.xi * R
+        dI = self.beta * S * infected - self.gamma * infected
+        dR = self.gamma * infected - self.xi * R
         return np.stack([dS, dI, dR], axis=-1)
 
 
@@ -343,11 +342,11 @@ class SIRDSystem(DynamicalSystem):
 
     def rhs(self, u):
         u = np.asarray(u, dtype=float)
-        S, I, R, D = u[..., 0], u[..., 1], u[..., 2], u[..., 3]
-        dS = -self.beta * S * I
-        dI = self.beta * S * I - (self.gamma + self.mu) * I
-        dR = self.gamma * I
-        dD = self.mu * I
+        S, infected = u[..., 0], u[..., 1]
+        dS = -self.beta * S * infected
+        dI = self.beta * S * infected - (self.gamma + self.mu) * infected
+        dR = self.gamma * infected
+        dD = self.mu * infected
         return np.stack([dS, dI, dR, dD], axis=-1)
 
 
@@ -364,11 +363,11 @@ class SEIRSystem(DynamicalSystem):
 
     def rhs(self, u):
         u = np.asarray(u, dtype=float)
-        S, E, I, R = u[..., 0], u[..., 1], u[..., 2], u[..., 3]
-        dS = -self.beta * S * I
-        dE = self.beta * S * I - self.sigma * E
-        dI = self.sigma * E - self.gamma * I
-        dR = self.gamma * I
+        S, E, infected = u[..., 0], u[..., 1], u[..., 2]
+        dS = -self.beta * S * infected
+        dE = self.beta * S * infected - self.sigma * E
+        dI = self.sigma * E - self.gamma * infected
+        dR = self.gamma * infected
         return np.stack([dS, dE, dI, dR], axis=-1)
 
 
@@ -385,11 +384,11 @@ class SIRNonlinearSystem(DynamicalSystem):
 
     def rhs(self, u):
         u = np.asarray(u, dtype=float)
-        S, I, R = u[..., 0], u[..., 1], u[..., 2]
-        incidence = self.beta * S * I / (1.0 + self.a * I)
+        S, infected = u[..., 0], u[..., 1]
+        incidence = self.beta * S * infected / (1.0 + self.a * infected)
         dS = -incidence
-        dI = incidence - self.gamma * I
-        dR = self.gamma * I
+        dI = incidence - self.gamma * infected
+        dR = self.gamma * infected
         return np.stack([dS, dI, dR], axis=-1)
 
 
@@ -407,12 +406,12 @@ class ProjectedSIRFromSEIRSystem(DynamicalSystem):
 
     def rhs(self, u):
         u = np.asarray(u, dtype=float)
-        S, I, R = u[..., 0], u[..., 1], u[..., 2]
-        # In this projection, we assume E is proportional to I for the RHS evaluation
-        E = self.e_ratio * I
-        dS = -self.beta * S * I
-        dI = self.sigma * E - self.gamma * I
-        dR = self.gamma * I
+        S, infected = u[..., 0], u[..., 1]
+        # This projection assumes E is proportional to I for RHS evaluation.
+        E = self.e_ratio * infected
+        dS = -self.beta * S * infected
+        dI = self.sigma * E - self.gamma * infected
+        dR = self.gamma * infected
         return np.stack([dS, dI, dR], axis=-1)
 
 

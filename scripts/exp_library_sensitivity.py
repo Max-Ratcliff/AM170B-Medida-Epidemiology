@@ -9,8 +9,8 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from scripts.utils import apply_publication_theme
-from medida import (
+from scripts.utils import apply_publication_theme  # noqa: E402
+from medida import (  # noqa: E402
     SIRNonlinearSystem,
     PolynomialLibrary,
     SaturatedSIRLibrary,
@@ -22,7 +22,7 @@ from medida import (
 
 
 def run_library_sensitivity():
-    """Analyze how library selection (Linear vs Polynomial vs Saturated) affects discovery of nonlinear physics."""
+    """Analyze how library selection affects nonlinear discovery."""
     output_dir = "outputs/experiments/library_sensitivity"
     os.makedirs(output_dir, exist_ok=True)
     apply_publication_theme()
@@ -73,7 +73,7 @@ def run_library_sensitivity():
         res = medida.fit(obs_prev, obs_curr)
 
         # Calculate improvement: ε_m / ε*
-        # (Using a surrogate "true" coefficient mapping for non-saturated libraries)
+        # Use a surrogate true coefficient map for non-saturated libraries.
         c_true_map = true_system.coefficients(lib)
         eps_m = coefficient_error(c_true_map, baseline_c)
         eps_s = coefficient_error(

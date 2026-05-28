@@ -1,22 +1,21 @@
 import os
 import tempfile
 import pandas as pd
-import numpy as np
 
 os.environ.setdefault(
     "MPLCONFIGDIR", os.path.join(tempfile.gettempdir(), "medida_mplconfig")
 )
-import matplotlib
+import matplotlib  # noqa: E402
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt  # noqa: E402
 
 # Ensure project root is in path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def analyze_bias(csv_path):
-    """Analyze if improvement factors correlate with population size or case counts (Antagonistic Audit)."""
+    """Analyze whether improvement factors correlate with data scale."""
     if not os.path.exists(csv_path):
         print(f"Error: {csv_path} not found.")
         return

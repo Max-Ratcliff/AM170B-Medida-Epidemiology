@@ -2,7 +2,9 @@ import numpy as np
 
 
 def coefficient_error(true_coeffs, estimated_coeffs):
-    """Normalised coefficient distance || c_s - c_other || / || c_s || (Eq. 16).
+    """Normalised coefficient distance.
+
+    Computes || c_s - c_other || / || c_s ||, matching Eq. 16.
 
     Args:
         true_coeffs (array-like): The ground truth coefficient matrix.

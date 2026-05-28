@@ -10,8 +10,11 @@ class FeatureLibrary(ABC):
     a feature space.
     """
 
+    feature_names: list[str]
+    n_features: int
+
     @abstractmethod
-    def transform(self, states):
+    def transform(self, states) -> np.ndarray:
         """Map raw state observations into the feature space."""
         pass
 
@@ -30,7 +33,8 @@ class FeatureLibrary(ABC):
 class PolynomialLibrary(FeatureLibrary):
     """Library consisting of multivariate polynomial features.
 
-    Typically used for finite-dimensional Ordinary Differential Equations (ODEs).
+    Typically used for finite-dimensional Ordinary Differential Equations
+    (ODEs).
     """
 
     kind = "vector_ode"
@@ -47,7 +51,7 @@ class PolynomialLibrary(FeatureLibrary):
         self.n_features = len(self.exponents)
 
     def _build_exponents(self):
-        """Generate all unique polynomial exponent combinations up to the given degree."""
+        """Generate polynomial exponent combinations up to the given degree."""
         exps = []
         lowest = 0 if self.include_bias else 1
         for total in range(lowest, self.degree + 1):
@@ -61,7 +65,7 @@ class PolynomialLibrary(FeatureLibrary):
         return exps
 
     def _name(self, exponent):
-        """Construct a human-readable string representation of a polynomial term."""
+        """Construct a human-readable polynomial term string."""
         if all(p == 0 for p in exponent):
             return "1"
         parts = []
@@ -72,12 +76,12 @@ class PolynomialLibrary(FeatureLibrary):
                 parts.append(f"{var}^{p}")
         return " ".join(parts)
 
-    def transform(self, states):
+    def transform(self, states) -> np.ndarray:
         """Transform input states into the polynomial feature matrix.
 
         Args:
-            states (array-like): Input observations of shape (n_samples, n_vars)
-                or (n_vars,).
+            states (array-like): Input observations of shape
+                (n_samples, n_vars) or (n_vars,).
 
         Returns:
             np.ndarray: Feature matrix of shape (n_samples, n_features).
@@ -95,7 +99,7 @@ class PolynomialLibrary(FeatureLibrary):
 
 
 class PDELibrary(FeatureLibrary):
-    """Library consisting of spatial-derivative and nonlinear terms for 1-D PDEs.
+    """Library with spatial-derivative and nonlinear terms for 1-D PDEs.
 
     Uses spectral methods (FFT) to compute high-order spatial derivatives.
     """
@@ -136,14 +140,14 @@ class PDELibrary(FeatureLibrary):
         return f"{poly} {deriv}"
 
     def derivative(self, field, order):
-        """Compute the spatial derivative of the field using the spectral method."""
+        """Compute the spatial derivative using the spectral method."""
         if order == 0:
             return np.asarray(field, dtype=float)
         fhat = np.fft.fft(field, axis=-1)
         fhat = fhat * (1j * self.k) ** order
         return np.real(np.fft.ifft(fhat, axis=-1))
 
-    def transform(self, states):
+    def transform(self, states) -> np.ndarray:
         """Build the PDE feature library matrix.
 
         Args:
@@ -151,7 +155,8 @@ class PDELibrary(FeatureLibrary):
                 (n_samples, n_grid) or (n_grid,).
 
         Returns:
-            np.ndarray: Feature matrix of shape (n_samples * n_grid, n_features).
+            np.ndarray: Feature matrix of shape
+                (n_samples * n_grid, n_features).
         """
         U = np.atleast_2d(np.asarray(states, dtype=float))
         cols = []
@@ -170,7 +175,7 @@ class PDELibrary(FeatureLibrary):
 class SaturatedSIRLibrary(FeatureLibrary):
     """Custom library for nonlinear incidence SIR models.
 
-    Includes terms for linear incidence and saturated incidence (Holling Type II).
+    Includes terms for linear incidence and saturated incidence.
     """
 
     def __init__(self, a=8.0):
@@ -178,7 +183,7 @@ class SaturatedSIRLibrary(FeatureLibrary):
         self.feature_names = ["I", "S I", f"S I / (1 + {self.a:g} I)"]
         self.n_features = len(self.feature_names)
 
-    def transform(self, states):
+    def transform(self, states) -> np.ndarray:
         """Map S, I, R states into the saturated incidence feature space.
 
         Args:
@@ -192,6 +197,6 @@ class SaturatedSIRLibrary(FeatureLibrary):
         if states.ndim == 1:
             states = states[None, :]
         S = states[:, 0]
-        I = states[:, 1]
-        saturated = S * I / (1.0 + self.a * I)
-        return np.column_stack([I, S * I, saturated])
+        infected = states[:, 1]
+        saturated = S * infected / (1.0 + self.a * infected)
+        return np.column_stack([infected, S * infected, saturated])

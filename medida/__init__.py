@@ -1,3 +1,5 @@
+# ruff: noqa: F401
+
 from .integrators import euler_step, rk4_step, integrate
 from .libraries import (
     FeatureLibrary,
