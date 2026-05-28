@@ -1,5 +1,6 @@
 import numpy as np
 from abc import ABC, abstractmethod
+from itertools import combinations_with_replacement
 
 class FeatureLibrary(ABC):
     @abstractmethod
@@ -9,93 +10,105 @@ class FeatureLibrary(ABC):
         return self.feature_names.index(name)
 
 class PolynomialLibrary(FeatureLibrary):
-    def __init__(self, n_vars, degree=2, include_constant=True, var_names=None):
-        self.n_vars = n_vars
-        self.degree = degree
-        self.include_constant = include_constant
-        self.var_names = var_names if var_names else [f"u{i}" for i in range(n_vars)]
-        
-        self.feature_names = []
-        if include_constant:
-            self.feature_names.append("1")
-            
-        # First degree
-        for i in range(n_vars):
-            self.feature_names.append(self.var_names[i])
-            
-        # Second degree
-        if degree >= 2:
-            for i in range(n_vars):
-                for j in range(i, n_vars):
-                    self.feature_names.append(f"{self.var_names[i]} {self.var_names[j]}")
-                    
-        self.n_features = len(self.feature_names)
+    """Multivariate polynomial library for finite-dimensional (ODE) systems."""
+    kind = "vector_ode"
+    def __init__(self, n_vars, degree=2, include_bias=True, var_names=None):
+        self.n_vars = int(n_vars)
+        self.degree = int(degree)
+        self.include_bias = bool(include_bias)
+        if var_names is None:
+            var_names = [f"u{i}" for i in range(self.n_vars)]
+        self.var_names = list(var_names)
+        self.exponents = self._build_exponents()
+        self.feature_names = [self._name(e) for e in self.exponents]
+        self.n_features = len(self.exponents)
+
+    def _build_exponents(self):
+        exps = []
+        lowest = 0 if self.include_bias else 1
+        for total in range(lowest, self.degree + 1):
+            for combo in combinations_with_replacement(range(self.n_vars), total):
+                e = [0] * self.n_vars
+                for idx in combo:
+                    e[idx] += 1
+                exps.append(tuple(e))
+        return exps
+
+    def _name(self, exponent):
+        if all(p == 0 for p in exponent):
+            return "1"
+        parts = []
+        for var, p in zip(self.var_names, exponent):
+            if p == 1:
+                parts.append(var)
+            elif p > 1:
+                parts.append(f"{var}^{p}")
+        return " ".join(parts)
 
     def transform(self, states):
-        states = np.asarray(states)
-        if states.ndim == 1:
-            states = states[None, :]
-        n_samples = states.shape[0]
-        
-        features = []
-        if self.include_constant:
-            features.append(np.ones(n_samples))
-            
-        for i in range(self.n_vars):
-            features.append(states[:, i])
-            
-        if self.degree >= 2:
-            for i in range(self.n_vars):
-                for j in range(i, self.n_vars):
-                    features.append(states[:, i] * states[:, j])
-                    
-        return np.column_stack(features)
-
-class PDELibrary(FeatureLibrary):
-    """Library for 1D PDEs (spectral features)."""
-    kind = "scalar_pde"
-    def __init__(self, n_grid=64, length=22.0, poly_order=2, deriv_order=4):
-        self.n_grid = int(n_grid)
-        self.L = float(length)
-        self.dx = self.L / self.n_grid
-        self.k = 2.0 * np.pi * np.fft.fftfreq(self.n_grid, d=self.dx)
-        
-        self.feature_names = []
-        # Matches notebook: u, u u_x, u_xx, u_xxxx etc.
-        # Simple hardcoded list for KS as per notebook
-        self.feature_names = ["u", "u u_x", "u_x", "u_xx", "u_xxx", "u_xxxx"]
-        self.n_features = len(self.feature_names)
-
-    def transform(self, u):
-        u = np.asarray(u, dtype=float)
-        if u.ndim == 1:
-            u = u[None, :]
-        n_samples, N = u.shape
-        
-        def spec_deriv(u, order):
-            fhat = np.fft.fft(u, axis=-1) * (1j * self.k) ** order
-            return np.real(np.fft.ifft(fhat, axis=-1))
-
-        ux = spec_deriv(u, 1)
-        uxx = spec_deriv(u, 2)
-        uxxx = spec_deriv(u, 3)
-        uxxxx = spec_deriv(u, 4)
-        
-        Phi = np.column_stack([
-            u.flatten(),
-            (u * ux).flatten(),
-            ux.flatten(),
-            uxx.flatten(),
-            uxxx.flatten(),
-            uxxxx.flatten()
-        ])
+        U = np.atleast_2d(np.asarray(states, dtype=float))
+        n = U.shape[0]
+        Phi = np.empty((n, self.n_features), dtype=float)
+        for j, exponent in enumerate(self.exponents):
+            col = np.ones(n, dtype=float)
+            for var, p in enumerate(exponent):
+                if p:
+                    col = col * U[:, var] ** p
+            Phi[:, j] = col
         return Phi
 
+class PDELibrary(FeatureLibrary):
+    """Spatial-derivative library for 1-D periodic PDE systems."""
+    kind = "scalar_pde"
+    def __init__(self, n_grid, length, poly_order=4, deriv_order=4, include_bias=True):
+        self.n_grid = int(n_grid)
+        self.length = float(length)
+        self.poly_order = int(poly_order)
+        self.deriv_order = int(deriv_order)
+        self.include_bias = bool(include_bias)
+        self.k = 2.0 * np.pi * np.fft.fftfreq(self.n_grid, d=self.length / self.n_grid)
+        self.terms = []
+        self.feature_names = []
+        if self.include_bias:
+            self.terms.append(("bias", "bias"))
+            self.feature_names.append("1")
+        for r in range(0, self.poly_order + 1):
+            for s in range(0, self.deriv_order + 1):
+                self.terms.append((r, s))
+                self.feature_names.append(self._name(r, s))
+        self.n_features = len(self.terms)
+
+    @staticmethod
+    def _name(r, s):
+        deriv = "u" if s == 0 else "u_" + "x" * s
+        if r == 0:
+            return deriv
+        poly = "u" if r == 1 else f"u^{r}"
+        return f"{poly} {deriv}"
+
+    def derivative(self, field, order):
+        if order == 0:
+            return np.asarray(field, dtype=float)
+        fhat = np.fft.fft(field, axis=-1)
+        fhat = fhat * (1j * self.k) ** order
+        return np.real(np.fft.ifft(fhat, axis=-1))
+
+    def transform(self, states):
+        U = np.atleast_2d(np.asarray(states, dtype=float))
+        cols = []
+        for term in self.terms:
+            if term == ("bias", "bias"):
+                cols.append(np.ones(U.size, dtype=float))
+                continue
+            r, s = term
+            value = self.derivative(U, s)
+            if r > 0:
+                value = U ** r * value
+            cols.append(value.reshape(-1))
+        return np.stack(cols, axis=1)
+
 class SaturatedSIRLibrary(FeatureLibrary):
-    """
-    Library for nonlinear-incidence SIR.
-    Features: I, S I, S I / (1 + a I)
-    """
+    """Library for nonlinear-incidence SIR. Features: I, S I, S I / (1 + a I)"""
     def __init__(self, a=8.0):
         self.a = float(a)
         self.feature_names = ["I", "S I", f"S I / (1 + {self.a:g} I)"]

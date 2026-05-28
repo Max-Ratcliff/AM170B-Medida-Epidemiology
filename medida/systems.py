@@ -16,7 +16,26 @@ class DynamicalSystem(ABC):
 
     def trajectory(self, u0, dt, n_steps, method="rk4", substeps=1):
         """Integrate the system and return the full trajectory."""
-        return integrate(self.rhs, u0, dt, n_steps, method=method, substeps=substeps)
+        u = np.asarray(u0, dtype=float)
+        out = np.empty((n_steps + 1,) + u.shape, dtype=float)
+        out[0] = u
+        for i in range(n_steps):
+            u = self.step(u, dt, method=method, substeps=substeps)
+            out[i + 1] = u
+        return out
+
+    def coefficients(self, library, n_probe=4000, probe_scale=12.0, seed=0):
+        """Express ``rhs`` in ``library`` as a coefficient matrix."""
+        rng = np.random.default_rng(seed)
+        U = rng.standard_normal((n_probe, self.dim)) * probe_scale
+        Phi = library.transform(U)
+        target = np.asarray(self.rhs(U), dtype=float)
+        if hasattr(library, "kind") and library.kind == "scalar_pde":
+            target = target.reshape(-1)
+        else:
+            target = target.reshape(n_probe, self.dim)
+        coeffs, *_ = np.linalg.lstsq(Phi, target, rcond=None)
+        return coeffs
 
 class PolynomialODE(DynamicalSystem):
     def __init__(self, coefficients, library, state_names=None):
@@ -186,3 +205,31 @@ class SIRNonlinearSystem(DynamicalSystem):
         dI =  incidence - self.gamma * I
         dR =  self.gamma * I
         return np.stack([dS, dI, dR], axis=-1)
+
+class ProjectedSIRFromSEIRSystem(DynamicalSystem):
+    """3D SIR system that is really a projection of a 4D SEIR system."""
+    dim = 3
+    state_names = ("S", "I", "R")
+    def __init__(self, beta=0.6, sigma=0.2, gamma=0.18, e_ratio=0.5):
+        self.beta = float(beta)
+        self.sigma = float(sigma)
+        self.gamma = float(gamma)
+        self.e_ratio = float(e_ratio)
+
+    def rhs(self, u):
+        u = np.asarray(u, dtype=float)
+        S, I, R = u[..., 0], u[..., 1], u[..., 2]
+        # In this projection, we assume E is proportional to I for the RHS evaluation
+        E = self.e_ratio * I
+        dS = -self.beta * S * I
+        dI =  self.sigma * E - self.gamma * I
+        dR =  self.gamma * I
+        return np.stack([dS, dI, dR], axis=-1)
+
+def make_ks_model(beta=1.0, nu_2=1.0, nu_4=1.0, L=22.0, N=64):
+    """Helper to build a Kuramoto-Sivashinsky system."""
+    return KSSystem(L=L, N=N, beta=beta, nu_2=nu_2, nu_4=nu_4)
+
+def make_sir_model(beta=0.6, gamma=0.18):
+    """Helper to build a standard SIR system."""
+    return SIRSystem(beta=beta, gamma=gamma)

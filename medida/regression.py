@@ -93,7 +93,7 @@ class RelevanceVectorMachine:
         self.beta_ = beta
         self.n_features_ = n_features
         
-        # compatibility with previous code
+        # compatibility with notebook properties
         self.coefficients = self.coef_
         self.active_idx = self.support_
         

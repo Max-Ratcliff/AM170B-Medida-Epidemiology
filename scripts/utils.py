@@ -90,30 +90,74 @@ def run_medida_experiment(
     print(format_system(corrected_coeffs, library.feature_names, true_system.state_names))
 
     # Plotting
+    import seaborn as sns
+    sns.set_theme(style="ticks")
+    
     print(f"[*] Generating diagnostic plots: outputs/figures/{name.lower().replace(' ', '_').replace('-', '_')}.png")
     t = np.linspace(0, t_end, n_steps + 1)
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
     
-    # Plot component comparison
+    # Use a professional color palette
+    colors = sns.color_palette("muted")
+    true_color = "black"
+    bad_color = colors[3]  # Red-ish
+    cor_color = colors[2]  # Green-ish
+    
+    # 1. Trajectory comparison (Main variables S and I if available)
     ax = axes[0]
-    ax.plot(t, true_traj[:, plot_index], 'k-', label='True')
-    ax.plot(t, bad_traj[:, plot_index], 'r--', label='Imperfect')
-    ax.plot(t, corrected_traj[:, plot_index], 'b:', label='Corrected')
-    ax.set_title(f"{name}: {true_system.state_names[plot_index]} comparison")
-    ax.set_xlabel("time")
-    ax.set_ylabel(true_system.state_names[plot_index])
-    ax.legend()
+    if true_system.dim >= 2:
+        # Plot S
+        ax.plot(t, true_traj[:, 0], '-', color=true_color, alpha=0.3, label='True S')
+        ax.plot(t, corrected_traj[:, 0], ':', color=cor_color, lw=2, label='Corrected S')
+        # Plot I
+        ax.plot(t, true_traj[:, 1], '-', color=true_color, label='True I')
+        ax.plot(t, bad_traj[:, 1], '--', color=bad_color, label='Imperfect I')
+        ax.plot(t, corrected_traj[:, 1], ':', color=cor_color, lw=2, label='Corrected I')
+    else:
+        ax.plot(t, true_traj.squeeze(), '-', color=true_color, label='True')
+        ax.plot(t, bad_traj.squeeze(), '--', color=bad_color, label='Imperfect')
+        ax.plot(t, corrected_traj.squeeze(), ':', color=cor_color, lw=2, label='Corrected')
     
-    # Plot residuals
+    ax.set_title("Trajectory Comparison", fontweight="bold")
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Population Fraction")
+    ax.legend(frameon=False)
+    
+    # 2. Phase Portrait (S vs I)
     ax = axes[1]
-    ax.plot(t, bad_traj[:, plot_index] - true_traj[:, plot_index], 'r--', label='Imperfect residual')
-    ax.plot(t, corrected_traj[:, plot_index] - true_traj[:, plot_index], 'b:', label='Corrected residual')
-    ax.set_title("Residuals")
-    ax.set_xlabel("time")
-    ax.legend()
+    if true_system.dim >= 2:
+        ax.plot(true_traj[:, 0], true_traj[:, 1], '-', color=true_color, label='True')
+        ax.plot(bad_traj[:, 0], bad_traj[:, 1], '--', color=bad_color, label='Imperfect')
+        ax.plot(corrected_traj[:, 0], corrected_traj[:, 1], ':', color=cor_color, lw=3, label='Corrected')
+        ax.set_xlabel("S (Susceptible)")
+        ax.set_ylabel("I (Infectious)")
+        ax.set_title("Phase Portrait", fontweight="bold")
+    else:
+        # For 1D systems, plot u vs u_t
+        rhs_true = np.array([true_system.rhs(u) for u in true_traj])
+        ax.plot(true_traj.squeeze(), rhs_true.squeeze(), '-', color=true_color, label='True')
+        ax.set_xlabel("u")
+        ax.set_ylabel("du/dt")
+        ax.set_title("Dynamics (u vs du/dt)", fontweight="bold")
+    ax.legend(frameon=False)
     
+    # 3. Residuals (Log scale)
+    ax = axes[2]
+    res_bad = np.linalg.norm(bad_traj - true_traj, axis=-1)
+    res_cor = np.linalg.norm(corrected_traj - true_traj, axis=-1)
+    
+    ax.semilogy(t, res_bad, '--', color=bad_color, label='Imperfect Error')
+    ax.semilogy(t, res_cor, '-', color=cor_color, label='Corrected Error')
+    ax.set_title("Log-Relative Error", fontweight="bold")
+    ax.set_xlabel("Time")
+    ax.set_ylabel("L2 Norm Error")
+    ax.grid(True, which="both", ls="-", alpha=0.1)
+    ax.legend(frameon=False)
+    
+    sns.despine()
     plt.tight_layout()
     filename = name.lower().replace(" ", "_").replace("-", "_") + ".png"
-    plt.savefig(f"outputs/figures/{filename}")
+    plt.savefig(f"outputs/figures/{filename}", dpi=150)
+    plt.close()
     
     return result, corrected_coeffs, corrected_model

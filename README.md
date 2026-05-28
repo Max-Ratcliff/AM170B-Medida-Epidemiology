@@ -59,15 +59,26 @@ Reproduces the synthetic verification cases from the MEDIDA paper (SIR, SIRS, SI
 python scripts/verification.py
 ```
 
-### Run COVID-19 Analysis
+### Run Real-World COVID-19 Analysis & Ablations
 
-Analyzes historical data for Italy to discover structural corrections for a naive SIR model:
+Analyzes historical data to discover structural corrections. Supports choosing training sources and running global performance sweeps:
 
 ```bash
+# Standard analysis (Default: Italy)
 python scripts/covid_analysis.py
+
+# Ablation: Train on Sweden and evaluate globally
+python scripts/covid_analysis.py --train-country Sweden --sweep
+
+# Ablation: Train on United States and evaluate globally
+python scripts/covid_analysis.py --train-country "United States" --sweep
 ```
 
-Results and diagnostic plots will be saved in `outputs/figures/`.
+**CLI Flags:**
+- `--train-country [NAME]`: Source country for discovering the structural correction (default: Italy).
+- `--sweep`: Iterate through all ~200 OWID countries to evaluate the "universality" of the discovered correction.
+
+Results, global rankings, and effective transmission plots will be saved in `outputs/figures/`.
 
 ## References
 
