@@ -408,6 +408,58 @@ def plot_global_beta_comparison(
 
 
 # ---------------------------------------------------------------------------
+# Global choropleth map of improvement ratio
+# ---------------------------------------------------------------------------
+
+def plot_global_improvement_map(all_rows, train_country_set, output_path):
+    """World choropleth: improvement ratio for every evaluated country."""
+    import plotly.express as px
+
+    NAME_FIXES = {
+        "United States": "United States of America",
+        "Democratic Republic of Congo": "Democratic Republic of the Congo",
+        "Congo": "Republic of the Congo",
+        "Czechia": "Czech Republic",
+    }
+
+    df = pd.DataFrame([
+        {"country": r["country"], "improvement": r["improvement"]}
+        for r in all_rows
+        if np.isfinite(r["improvement"])
+    ])
+    df["country_plot"] = df["country"].replace(NAME_FIXES)
+    df["in_training"] = df["country"].isin(train_country_set)
+
+    cap = float(df["improvement"].quantile(0.95))
+    df["improvement_capped"] = df["improvement"].clip(upper=cap)
+
+    fig = px.choropleth(
+        df,
+        locations="country_plot",
+        locationmode="country names",
+        color="improvement_capped",
+        hover_name="country",
+        hover_data={"improvement": ":.2f", "improvement_capped": False,
+                    "country_plot": False, "in_training": True},
+        color_continuous_scale="RdYlGn",
+        range_color=(0, cap),
+        title="GLOBAL ACCURACY GAIN — GLOBALLY TRAINED MEDIDA",
+    )
+    fig.update_layout(
+        title_font_size=18,
+        title_x=0.5,
+        margin=dict(l=0, r=0, t=40, b=0),
+        coloraxis_colorbar=dict(title="Improvement (×)"),
+        geo=dict(
+            showframe=False,
+            showcoastlines=True,
+            projection_type="equirectangular",
+        ),
+    )
+    fig.write_image(output_path, scale=2)
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -518,6 +570,15 @@ def main():
     for row in target_plot_rows:
         slug = row["country"].lower().replace(" ", "_")
         plot_country_fit(row, os.path.join(output_dir, f"{slug}_fit_error.png"))
+
+    # --- Global map (only when sweep provides enough countries) ---
+    if args.sweep and len(target_rows) > 10:
+        print("Plotting global improvement map...")
+        train_names = {c for c, _ in used_countries}
+        plot_global_improvement_map(
+            target_rows, train_names,
+            os.path.join(output_dir, "global_map.png"),
+        )
 
     print(f"\nOutputs written to {output_dir}/")
     for fname in sorted(os.listdir(output_dir)):
