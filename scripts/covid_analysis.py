@@ -100,7 +100,7 @@ def run_covid_example():
     print(format_system(result.error_coefficients, lib.feature_names, ["S", "I", "R"]))
 
     # 6. Prediction Comparison
-    print(f"[*] Generating diagnostic plots: figures/covid_{COVID_COUNTRY.lower()}.png")
+    print(f"[*] Generating diagnostic plots: outputs/figures/covid_{COVID_COUNTRY.lower()}.png")
     t = np.arange(len(covid_states))
     fig, ax = plt.subplots(figsize=(12, 5))
     
@@ -119,7 +119,7 @@ def run_covid_example():
     ax.legend()
     
     plt.tight_layout()
-    plt.savefig(f"figures/covid_{COVID_COUNTRY.lower()}.png")
+    plt.savefig(f"outputs/figures/covid_{COVID_COUNTRY.lower()}.png")
     print(f"\nAnalysis complete for {COVID_COUNTRY}.")
 
 if __name__ == "__main__":

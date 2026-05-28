@@ -90,7 +90,7 @@ def run_medida_experiment(
     print(format_system(corrected_coeffs, library.feature_names, true_system.state_names))
 
     # Plotting
-    print(f"[*] Generating diagnostic plots: figures/{name.lower().replace(' ', '_').replace('-', '_')}.png")
+    print(f"[*] Generating diagnostic plots: outputs/figures/{name.lower().replace(' ', '_').replace('-', '_')}.png")
     t = np.linspace(0, t_end, n_steps + 1)
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
     
@@ -114,6 +114,6 @@ def run_medida_experiment(
     
     plt.tight_layout()
     filename = name.lower().replace(" ", "_").replace("-", "_") + ".png"
-    plt.savefig(f"figures/{filename}")
+    plt.savefig(f"outputs/figures/{filename}")
     
     return result, corrected_coeffs, corrected_model

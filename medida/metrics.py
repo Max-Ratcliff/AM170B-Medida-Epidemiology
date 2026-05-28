@@ -1,14 +1,22 @@
 import numpy as np
 
 def coefficient_error(true_coeffs, estimated_coeffs):
-    """L2 error between two coefficient matrices."""
-    return np.linalg.norm(true_coeffs - estimated_coeffs)
+    """Normalised coefficient distance || c_s - c_other || / || c_s || (Eq. 16)."""
+    true_coeffs = np.asarray(true_coeffs, dtype=float)
+    estimated_coeffs = np.asarray(estimated_coeffs, dtype=float)
+    denom = np.linalg.norm(true_coeffs)
+    if denom == 0.0:
+        return float(np.linalg.norm(true_coeffs - estimated_coeffs))
+    return float(np.linalg.norm(true_coeffs - estimated_coeffs) / denom)
 
-def relative_error(true_traj, estimated_traj):
-    """Mean relative L2 error over a trajectory."""
-    diff = np.linalg.norm(true_traj - estimated_traj, axis=-1)
-    norm = np.linalg.norm(true_traj, axis=-1)
-    return np.mean(diff / (norm + 1e-12))
+def relative_error(reference, estimate):
+    """Generic relative L2 error || reference - estimate || / || reference ||."""
+    reference = np.asarray(reference, dtype=float)
+    estimate = np.asarray(estimate, dtype=float)
+    denom = np.linalg.norm(reference)
+    if denom == 0.0:
+        return float(np.linalg.norm(reference - estimate))
+    return float(np.linalg.norm(reference - estimate) / denom)
 
 def format_equation(coeffs, feature_names, var_name="du/dt", tol=1e-4, precision=4):
     """Format a single ODE row as a string."""
