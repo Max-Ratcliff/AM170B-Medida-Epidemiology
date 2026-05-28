@@ -42,12 +42,17 @@ class PolynomialODE(DynamicalSystem):
         self.coefficients = np.asarray(coefficients, dtype=float)
         self.library = library
         self.state_names = state_names
-        self.dim = self.coefficients.shape[1]
+        if self.coefficients.ndim == 1:
+            self.dim = 1
+        else:
+            self.dim = self.coefficients.shape[1]
 
     def rhs(self, u):
         u = np.atleast_2d(u)
         phi = self.library.transform(u)
         res = phi @ self.coefficients
+        if self.dim == 1:
+            return res.ravel()
         return res.squeeze()
 
 class Lorenz63(DynamicalSystem):

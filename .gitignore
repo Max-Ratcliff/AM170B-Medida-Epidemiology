@@ -9,6 +9,8 @@ ENV/
 build/
 dist/
 *.egg-info/
-figures/*.png
 .ipynb_checkpoints/
-GEMINI.md
+data/
+outputs/
+*.png
+*.log

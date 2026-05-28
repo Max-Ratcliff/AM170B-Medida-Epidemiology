@@ -2,6 +2,7 @@ import sys
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 from medida import (
     sample_simplex_observations, 
     MEDIDA, 
@@ -9,155 +10,139 @@ from medida import (
     coefficient_error,
     relative_error,
     format_system,
-    RidgeRVM
 )
+from medida.metrics import format_latex_system
 
-def run_medida_experiment(
-    name, true_system, library, true_coeffs, imperfect_coeffs,
-    u0, alpha, dt_fit=0.01, n_samples=1000, sigma_obs=0.0,
-    seed=0, noise_seed=1, rvm=None, significance=1e-6,
-    ridge=0.0, plot_index=1
-):
-    print("\n" + "="*70)
-    print(name)
-    print("="*70)
-    
-    if rvm is None:
-        if ridge > 0:
-            rvm = RidgeRVM(ridge=ridge, t_min=2.0, threshold=0.01)
-        else:
-            from medida import RelevanceVectorMachine
-            rvm = RelevanceVectorMachine(t_min=2.0, threshold=0.01)
+def apply_publication_theme():
+    """Apply a premium 'Presentation-Grade' theme (16pt baseline)."""
+    sns.set_theme(style="ticks", context="talk", font_scale=1.2)
+    plt.rcParams.update({
+        "axes.spines.right": False,
+        "axes.spines.top": False,
+        "font.family": "sans-serif",
+        "font.sans-serif": ["Arial", "Helvetica", "Liberation Sans", "DejaVu Sans"],
+        "figure.dpi": 200,
+        "savefig.bbox": "tight",
+        "legend.frameon": False,
+        "axes.labelweight": "bold",
+        "axes.titleweight": "bold",
+        "lines.linewidth": 3.5,
+        "xtick.labelsize": 14,
+        "ytick.labelsize": 14,
+        "axes.labelsize": 16,
+        "axes.titlesize": 18
+    })
 
-    # 1. Sample observations using Dirichlet simplex sampling (matches notebook)
-    print(f"[*] Generating {n_samples} Dirichlet-simplex observation pairs (dt={dt_fit})...")
-    obs_prev, obs_curr, truth_prev, truth_curr = sample_simplex_observations(
-        true_system, n_samples, dt_fit, seed=seed, noise_seed=noise_seed,
-        sigma_obs=sigma_obs, alpha=alpha
-    )
+def save_latex_correction(coeffs, feature_names, state_names, metrics, filename, title="Discovered Correction"):
+    """Export raw LaTeX for manual compilation."""
+    latex_code = format_latex_system(coeffs, feature_names, state_names)
+    with open(filename, "w") as f:
+        f.write(f"% {title}\n")
+        f.write("% Metrics: " + ", ".join([f"{k}: {v}" for k, v in metrics.items()]) + "\n\n")
+        f.write(latex_code)
+        f.write("\n")
+
+def save_discovery_card(coeffs, feature_names, state_names, metrics, filename, title=""):
+    """Render a high-end visual card using Matplotlib's internal TeX rendering."""
+    apply_publication_theme()
+    fig, ax = plt.subplots(figsize=(10, 4.5))
+    ax.axis('off')
     
-    # 2. Setup MEDIDA
-    model_m = PolynomialODE(imperfect_coeffs, library, state_names=true_system.state_names)
-    medida = MEDIDA(model_m, library, dt=dt_fit, rvm=rvm, significance=significance)
+    # We use format_latex_system but wrap in $ $ for matplotlib's mathtext
+    # Simple substitution for some environments that matplotlib doesn't support
+    latex_code = format_latex_system(coeffs, feature_names, state_names)
+    clean_latex = latex_code.replace("\\begin{aligned}", "").replace("\\end{aligned}", "").replace("&", "")
     
-    # 3. Fit model error
-    print("[*] Running MEDIDA error discovery (Step 1-2)...")
+    # Render with mathtext
+    plt.text(0.5, 0.5, f"${clean_latex}$", ha='center', va='center', fontsize=20, 
+             transform=ax.transAxes, fontweight='bold',
+             bbox=dict(boxstyle="round,pad=1.5", fc="#ffffff", ec="#333333", lw=2))
+    
+    if title:
+        plt.text(0.5, 0.94, title.upper(), ha='center', transform=ax.transAxes, 
+                 fontsize=16, fontweight='black', color="#111111")
+    
+    # Metric Footer (Slide friendly)
+    m_parts = [f"\\mathbf{{{k.upper()}}}: {v}" for k, v in metrics.items()]
+    m_text = " \\quad \\bullet \\quad ".join(m_parts)
+    plt.text(0.5, 0.05, f"${m_text}$", ha='center', transform=ax.transAxes, 
+             fontsize=13, color="#555555")
+    
+    plt.savefig(filename, dpi=300, facecolor='white')
+    plt.close()
+
+def run_medida_experiment(name, true_system, library, true_coeffs, imperfect_coeffs, 
+                          u0, alpha=None, t_end=50.0, dt_fit=0.01, 
+                          n_samples=1000, sigma_obs=0.0, seed=0, 
+                          noise_seed=1, significance=1e-3, ridge=0.0,
+                          output_dir="outputs/synthetic/misc",
+                          generate_card=True):
+    """Experiment runner with premium visuals and high-contrast lines."""
+    os.makedirs(output_dir, exist_ok=True)
+    apply_publication_theme()
+    
+    obs_prev, obs_curr, _, _ = sample_simplex_observations(
+        true_system, n_samples, dt_fit, seed=seed, sigma_obs=sigma_obs, 
+        noise_seed=noise_seed, alpha=alpha)
+
+    imperfect_model = PolynomialODE(imperfect_coeffs, library, state_names=true_system.state_names)
+    from medida import RelevanceVectorMachine, RidgeRVM
+    rvm = RidgeRVM(ridge=ridge) if ridge > 0 else RelevanceVectorMachine()
+    medida = MEDIDA(imperfect_model, library, rvm=rvm, dt=dt_fit, significance=significance)
     result = medida.fit(obs_prev, obs_curr)
     
-    # 4. Correct model
-    print("[*] Applying structural corrections to model...")
     corrected_coeffs = result.corrected_coefficients(imperfect_coeffs)
     corrected_model = PolynomialODE(corrected_coeffs, library, state_names=true_system.state_names)
-    
-    # 5. Metrics
-    print("[*] Calculating performance metrics...")
+
+    # Performance
     eps_m = coefficient_error(true_coeffs, imperfect_coeffs)
     eps_star = coefficient_error(true_coeffs, corrected_coeffs)
-    
-    print(f"\nResults:")
-    print(f"  Observation noise sigma: {sigma_obs}")
-    print(f"  Original coefficient error eps_m: {eps_m:.6e}")
-    print(f"  Corrected coefficient error eps_star: {eps_star:.6e}")
-    if eps_star > 0:
-        print(f"  Improvement factor: {eps_m/eps_star:.2f}x")
-    
-    # Trajectory verification
-    print(f"[*] Validating corrected trajectory (t_end=50, substeps=8)...")
-    t_end = 50.0
-    dt = 0.05
-    n_steps = int(t_end / dt)
-    
-    true_traj = true_system.trajectory(u0, dt=dt, n_steps=n_steps, method="rk4", substeps=8)
-    bad_traj = model_m.trajectory(u0, dt=dt, n_steps=n_steps, method="rk4", substeps=8)
-    corrected_traj = corrected_model.trajectory(u0, dt=dt, n_steps=n_steps, method="rk4", substeps=8)
-    
-    rel_m = relative_error(true_traj, bad_traj)
-    rel_star = relative_error(true_traj, corrected_traj)
-    
-    print(f"  Original trajectory relative error: {rel_m:.6e}")
-    print(f"  Corrected trajectory relative error: {rel_star:.6e}")
-    if rel_star > 0:
-        print(f"  Trajectory improvement factor: {rel_m/rel_star:.2f}x")
+    n_steps = int(t_end / 0.1)
+    true_traj = true_system.trajectory(u0, 0.1, n_steps, substeps=8)
+    cor_traj = corrected_model.trajectory(u0, 0.1, n_steps, substeps=8)
+    err_cor = relative_error(true_traj, cor_traj)
 
-    print("\n[Models]")
-    print("True model:")
-    print(format_system(true_coeffs, library.feature_names, true_system.state_names))
-    print("\nImperfect model:")
-    print(format_system(imperfect_coeffs, library.feature_names, true_system.state_names))
-    print("\nDiscovered MEDIDA correction:")
-    print(format_system(result.error_coefficients, library.feature_names, true_system.state_names))
-    print("\nCorrected model:")
-    print(format_system(corrected_coeffs, library.feature_names, true_system.state_names))
-
-    # Plotting
-    import seaborn as sns
-    sns.set_theme(style="ticks")
+    metrics = {"Improvement": f"{eps_m/eps_star:.1f}x", "L2 Error": f"{err_cor:.1e}"}
     
-    print(f"[*] Generating diagnostic plots: outputs/figures/{name.lower().replace(' ', '_').replace('-', '_')}.png")
+    # Save Artifacts
+    save_latex_correction(result.error_coefficients, library.feature_names, true_system.state_names, 
+                          metrics, os.path.join(output_dir, "discovery.tex"), title=name)
+    
+    if generate_card:
+        save_discovery_card(result.error_coefficients, library.feature_names, true_system.state_names, 
+                            metrics, os.path.join(output_dir, "discovery_card.png"), title=f"Correction: {name}")
+
+    # Diagnostic Plot (High Contrast / Wide Aspect)
+    fig, axes = plt.subplots(1, 3, figsize=(22, 7))
+    colors = ["#111111", "#e31a1c", "#33a02c"] # High-contrast Black, Red, Green
     t = np.linspace(0, t_end, n_steps + 1)
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
     
-    # Use a professional color palette
-    colors = sns.color_palette("muted")
-    true_color = "black"
-    bad_color = colors[3]  # Red-ish
-    cor_color = colors[2]  # Green-ish
-    
-    # 1. Trajectory comparison (Main variables S and I if available)
+    # 1. Trajectory
     ax = axes[0]
     if true_system.dim >= 2:
-        # Plot S
-        ax.plot(t, true_traj[:, 0], '-', color=true_color, alpha=0.3, label='True S')
-        ax.plot(t, corrected_traj[:, 0], ':', color=cor_color, lw=2, label='Corrected S')
-        # Plot I
-        ax.plot(t, true_traj[:, 1], '-', color=true_color, label='True I')
-        ax.plot(t, bad_traj[:, 1], '--', color=bad_color, label='Imperfect I')
-        ax.plot(t, corrected_traj[:, 1], ':', color=cor_color, lw=2, label='Corrected I')
-    else:
-        ax.plot(t, true_traj.squeeze(), '-', color=true_color, label='True')
-        ax.plot(t, bad_traj.squeeze(), '--', color=bad_color, label='Imperfect')
-        ax.plot(t, corrected_traj.squeeze(), ':', color=cor_color, lw=2, label='Corrected')
-    
-    ax.set_title("Trajectory Comparison", fontweight="bold")
-    ax.set_xlabel("Time")
-    ax.set_ylabel("Population Fraction")
-    ax.legend(frameon=False)
-    
-    # 2. Phase Portrait (S vs I)
+        ax.plot(t, true_traj[:, 1], '-', color=colors[0], lw=4, label='TRUTH')
+        ax.plot(t, cor_traj[:, 1], '--', color=colors[2], lw=4, label='MEDIDA')
+    ax.set_title("TRAJECTORY RECOVERY")
+    ax.set_xlabel("TIME (DAYS)"); ax.set_ylabel("INFECTIOUS RATE")
+    ax.legend(loc='upper right')
+
+    # 2. Phase Space
     ax = axes[1]
     if true_system.dim >= 2:
-        ax.plot(true_traj[:, 0], true_traj[:, 1], '-', color=true_color, label='True')
-        ax.plot(bad_traj[:, 0], bad_traj[:, 1], '--', color=bad_color, label='Imperfect')
-        ax.plot(corrected_traj[:, 0], corrected_traj[:, 1], ':', color=cor_color, lw=3, label='Corrected')
-        ax.set_xlabel("S (Susceptible)")
-        ax.set_ylabel("I (Infectious)")
-        ax.set_title("Phase Portrait", fontweight="bold")
-    else:
-        # For 1D systems, plot u vs u_t
-        rhs_true = np.array([true_system.rhs(u) for u in true_traj])
-        ax.plot(true_traj.squeeze(), rhs_true.squeeze(), '-', color=true_color, label='True')
-        ax.set_xlabel("u")
-        ax.set_ylabel("du/dt")
-        ax.set_title("Dynamics (u vs du/dt)", fontweight="bold")
-    ax.legend(frameon=False)
-    
-    # 3. Residuals (Log scale)
+        ax.plot(true_traj[:, 0], true_traj[:, 1], color=colors[0], alpha=0.15, lw=2.5)
+        ax.plot(cor_traj[:, 0], cor_traj[:, 1], '--', color=colors[2], lw=4, label='RECOVERED')
+    ax.set_title("PHASE MANIFOLD")
+    ax.set_xlabel("SUSCEPTIBLE"); ax.set_ylabel("INFECTIOUS")
+
+    # 3. Log-Error
     ax = axes[2]
-    res_bad = np.linalg.norm(bad_traj - true_traj, axis=-1)
-    res_cor = np.linalg.norm(corrected_traj - true_traj, axis=-1)
-    
-    ax.semilogy(t, res_bad, '--', color=bad_color, label='Imperfect Error')
-    ax.semilogy(t, res_cor, '-', color=cor_color, label='Corrected Error')
-    ax.set_title("Log-Relative Error", fontweight="bold")
-    ax.set_xlabel("Time")
-    ax.set_ylabel("L2 Norm Error")
-    ax.grid(True, which="both", ls="-", alpha=0.1)
-    ax.legend(frameon=False)
+    res_cor = np.linalg.norm(cor_traj - true_traj, axis=-1)
+    ax.semilogy(t, res_cor, '-', color=colors[2], lw=3)
+    ax.set_title("DISCOVERY ACCURACY")
+    ax.set_xlabel("TIME"); ax.set_ylabel("L2 NORM ERROR")
     
     sns.despine()
     plt.tight_layout()
-    filename = name.lower().replace(" ", "_").replace("-", "_") + ".png"
-    plt.savefig(f"outputs/figures/{filename}", dpi=150)
+    plt.savefig(os.path.join(output_dir, "diagnostic_plot.png"), dpi=200)
     plt.close()
-    
-    return result, corrected_coeffs, corrected_model
+    return result

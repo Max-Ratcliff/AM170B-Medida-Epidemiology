@@ -45,7 +45,13 @@ def format_equation(coeffs, feature_names, var_name="du/dt", tol=1e-4, precision
 
 def format_system(coeffs, feature_names, state_names=None, tol=1e-4, precision=4):
     """Format a full ODE system as a string."""
-    n_vars = coeffs.shape[1]
+    coeffs = np.asarray(coeffs, dtype=float)
+    if coeffs.ndim == 1:
+        var_name = state_names[0] if state_names else "u"
+        return format_equation(coeffs, feature_names, var_name=f"d{var_name}/dt", 
+                               tol=tol, precision=precision)
+        
+    n_features, n_vars = coeffs.shape
     if state_names is None:
         state_names = [f"u{i}" for i in range(n_vars)]
     
@@ -55,3 +61,56 @@ def format_system(coeffs, feature_names, state_names=None, tol=1e-4, precision=4
                                     var_name=f"d{state_names[j]}/dt", 
                                     tol=tol, precision=precision))
     return "\n".join(lines)
+
+def to_latex(name):
+    """Convert a feature name to LaTeX (e.g., u^2 -> u^{2}, u_xx -> u_{xx})."""
+    if name == "1": return "1"
+    name = name.replace("^", "^{").replace(" ", " ")
+    if "^{" in name:
+        # Closing the bracket for exponents - simple heuristic
+        parts = name.split(" ")
+        new_parts = []
+        for p in parts:
+            if "^{" in p:
+                new_parts.append(p + "}")
+            else:
+                new_parts.append(p)
+        name = " ".join(new_parts)
+    
+    if "_" in name:
+        name = name.replace("_", "_{") + "}"
+    return name
+
+def format_latex_system(coeffs, feature_names, state_names=None, tol=1e-4, precision=4):
+    """Generate raw LaTeX text for the discovered system."""
+    coeffs = np.asarray(coeffs, dtype=float)
+    if state_names is None:
+        if coeffs.ndim == 1: n_vars = 1
+        else: n_vars = coeffs.shape[1]
+        state_names = [f"u_{i}" for i in range(n_vars)]
+    
+    def _format_row(row_coeffs, var_name):
+        terms = []
+        for i, c in enumerate(row_coeffs):
+            if abs(c) > tol:
+                sign = "+" if c > 0 else "-"
+                val = abs(c)
+                s_val = f"{val:.{precision}g}" if val != 1.0 else ""
+                feat = to_latex(feature_names[i])
+                terms.append(f"{sign} {s_val} {feat}")
+        
+        if not terms: return f"\\frac{{d{var_name}}}{{dt}} &= 0"
+        res = " ".join(terms)
+        if res.startswith("+ "): res = res[2:]
+        elif res.startswith("- "): res = "-" + res[2:]
+        return f"\\frac{{d{var_name}}}{{dt}} &= {res}"
+
+    lines = []
+    if coeffs.ndim == 1:
+        lines.append(_format_row(coeffs, state_names[0]))
+    else:
+        for j in range(coeffs.shape[1]):
+            lines.append(_format_row(coeffs[:, j], state_names[j]))
+            
+    out = "\\begin{aligned}\n" + " \\\\\n".join(lines) + "\n\\end{aligned}"
+    return out
