@@ -391,12 +391,11 @@ def plot_global_beta_comparison(
         dS_corr = (Phi @ corrected_coeffs)[:, 0]
         S, I = op[:, 0], op[:, 1]
         SI = np.clip(S * I, 1e-12, None)
-        # Hard-cap at a physical ceiling (10× global baseline) before
-        # computing per-panel ylim — prevents division blowup when I≈0
-        physical_cap = max(beta_global * 10, 2.0)
+        # Cap at 3× global baseline — removes I≈0 blowup and keeps
+        # all three panels on a comparable, presentable scale
+        physical_cap = max(beta_global * 3, 0.8)
         beta_raw = np.clip(-dS_corr / SI, 0, physical_cap)
-        y_max = float(np.percentile(beta_raw, 99)) * 1.25
-        y_max = max(y_max, beta_global * 1.5, 0.1)
+        y_max = max(float(beta_raw.max()) * 1.15, beta_global * 1.5, 0.1)
         beta_eff = np.clip(beta_raw, 0, y_max)
 
         t = np.arange(len(beta_eff))
